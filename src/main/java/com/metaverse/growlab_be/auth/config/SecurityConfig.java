@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -16,6 +17,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration // 스프링부트 설정 빈으로 등록
 @EnableWebSecurity // 스프링시큐리티 활성화
+@EnableMethodSecurity // 스프링시큐리티의 RBAC을 위한 메서드 권한 제어 활성화
 @RequiredArgsConstructor
 public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -44,6 +46,7 @@ public class SecurityConfig {
                 // 인가(Authorization) 부분으로 엔드포인트 접근 권한을 설정하는 부분
                 .authorizeHttpRequests((authorize) -> authorize
                         .requestMatchers("api/auth/**").permitAll()
+                        .requestMatchers("api/sample/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 // 커스텀한 JWT 필터를 UsernamePasswordAuthenticationFilter 전에 추가
