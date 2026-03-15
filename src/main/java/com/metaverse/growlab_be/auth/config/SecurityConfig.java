@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -37,6 +38,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                // 커스텀 CORS 설정을 스프링 시큐리티 필터 체인에 통합
+                .cors(Customizer.withDefaults())
                 // CSRF(Cross-Site Request Forgery) 교차 요청 위조 공격
                 // JWT 토큰 기반 인증 방식은 CSRF를 방어하는 수단이므로 불필요함
                 .csrf(AbstractHttpConfigurer::disable)
