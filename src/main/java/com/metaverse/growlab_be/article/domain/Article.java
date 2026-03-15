@@ -1,5 +1,6 @@
 package com.metaverse.growlab_be.article.domain;
 
+import com.metaverse.growlab_be.article.dto.ArticleRequestDto;
 import com.metaverse.growlab_be.comment.domain.Comment;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -27,4 +28,14 @@ public class Article {
 
     @OneToMany(mappedBy = "article", cascade = CascadeType.ALL, orphanRemoval = true)
     List<Comment> comments = new ArrayList<>();
+
+    public Article(ArticleRequestDto articleRequestDto) {
+        this.title = articleRequestDto.getTitle();
+        this.content = articleRequestDto.getContent();
+    }
+
+    public void update(ArticleRequestDto articleRequestDto) {
+        this.title = articleRequestDto.getTitle();
+        this.content = articleRequestDto.getContent();
+    }
 }
