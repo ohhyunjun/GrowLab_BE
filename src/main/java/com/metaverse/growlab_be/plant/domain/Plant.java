@@ -1,11 +1,14 @@
 package com.metaverse.growlab_be.plant.domain;
 
+import com.metaverse.growlab_be.diary.domain.Diary;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Setter
@@ -18,7 +21,7 @@ public class Plant {
     private Long id;
 
     @Column(nullable = false)
-    private String title;
+    private String name; // 식물 이름
 
     @Column(nullable = false)
     private LocalDateTime plantedAt; // 심은 날짜
@@ -27,4 +30,8 @@ public class Plant {
 
     @Column(nullable = false)
     private String plantStage; // 성장 단계
+
+    // Diary와의 1:N 관계
+    @OneToMany(mappedBy = "plant", cascade = CascadeType.ALL, orphanRemoval = true)
+    List<Diary> diaries = new ArrayList<>();
 }
