@@ -1,6 +1,8 @@
 package com.metaverse.growlab_be.auth.config;
 
 import com.metaverse.growlab_be.auth.filter.JwtAuthenticationFilter;
+import com.metaverse.growlab_be.auth.handler.CustomAccessDeniedHandler;
+import com.metaverse.growlab_be.auth.handler.CustomAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,6 +23,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final CustomAccessDeniedHandler customAccessDeniedHandler;
+    private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
 
     // Authentication Manager 빈 등록
     @Bean
@@ -43,6 +47,11 @@ public class SecurityConfig {
                 // JWT 토큰 기반 인증 시스템에서는 세션 상태를 직접 저장하지 않는 방식이므로 = STATELESS
                 .sessionManagement(sessionManagement ->
                         sessionManagement.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // 예외 처리 커스텀 핸들러 등록
+                .exceptionHandling(exception -> exception
+                        .accessDeniedHandler(customAccessDeniedHandler)
+                        .authenticationEntryPoint(customAuthenticationEntryPoint)
+                )
                 // 인가(Authorization) 부분으로 엔드포인트 접근 권한을 설정하는 부분
                 .authorizeHttpRequests((authorize) -> authorize
                         .requestMatchers("api/auth/**").permitAll()
