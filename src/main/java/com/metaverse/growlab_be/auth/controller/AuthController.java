@@ -55,7 +55,7 @@ public class AuthController {
             // @AuthenticationPrincipal 애너테이션이 내부적으로 (UserDetails) 형변환을 해줌
             UserDetails userDetails = (UserDetails) authentication.getPrincipal();
             // JWT 토큰 생성 (accessToken = jwtToken)
-            String accessToken = jwtUtil.generateToken(userDetails.getUsername());
+            String accessToken = jwtUtil.generateToken(userDetails);
 
             return ResponseEntity.ok(new AuthResponseDto(userDetails.getUsername(), accessToken));
         } catch (BadCredentialsException e) {

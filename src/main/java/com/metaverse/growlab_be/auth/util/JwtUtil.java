@@ -6,12 +6,15 @@ import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SecurityException;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.security.Key;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Function;
 
 @Component
@@ -35,9 +38,17 @@ public class JwtUtil {
     }
 
     // [[JWT 토큰 생성 메서드]]
-    public String generateToken(String username){
+    public String generateToken(UserDetails userDetails) {
+        Map<String, Object> claims = new HashMap<>();
+        String role = userDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .findFirst()
+                .orElse("");
+        claims.put("role", role);
+
         return Jwts.builder()
-                .subject(username) // Claim에 "subject" 설정
+                .claims(claims) // Claim에 "role" 추가 삽입
+                .subject(userDetails.getUsername()) // Claim에 "subject" 설정
                 .issuedAt(new Date(System.currentTimeMillis())) // 생성시간
                 .expiration(new Date(System.currentTimeMillis() + expirationTime)) // 만료 시간
                 .signWith(key)
