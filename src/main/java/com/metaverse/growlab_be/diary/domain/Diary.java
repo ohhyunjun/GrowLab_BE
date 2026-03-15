@@ -1,6 +1,7 @@
 package com.metaverse.growlab_be.diary.domain;
 
 import com.metaverse.growlab_be.common.domain.TimeStamped;
+import com.metaverse.growlab_be.diary.dto.DiaryRequestDto;
 import com.metaverse.growlab_be.plant.domain.Plant;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -32,4 +33,19 @@ public class Diary extends TimeStamped {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "plant_id", nullable = false)
     private Plant plant;
+
+    public Diary(DiaryRequestDto diaryRequestDto, Plant plant) {
+        this.title = diaryRequestDto.getTitle();
+        this.content = diaryRequestDto.getContent();
+        // String을 LocalDate로 변환해서 저장
+        this.targetDate = LocalDate.parse(diaryRequestDto.getTargetDate());
+        this.plant = plant;
+    }
+
+    public void update(DiaryRequestDto diaryRequestDto) {
+        this.title = diaryRequestDto.getTitle();
+        this.content = diaryRequestDto.getContent();
+        // String을 LocalDate로 변환해서 저장
+        this.targetDate = LocalDate.parse(diaryRequestDto.getTargetDate());
+    }
 }
