@@ -1,6 +1,7 @@
 package com.metaverse.growlab_be.plant.domain;
 
 import com.metaverse.growlab_be.diary.domain.Diary;
+import com.metaverse.growlab_be.plant.dto.PlantRequestDto;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -26,6 +27,7 @@ public class Plant {
     @Column(nullable = false)
     private LocalDateTime plantedAt; // 심은 날짜
 
+    @Column
     private LocalDateTime germinatedAt; // 발아 날짜
 
     @Column(nullable = false)
@@ -34,4 +36,17 @@ public class Plant {
     // Diary와의 1:N 관계
     @OneToMany(mappedBy = "plant", cascade = CascadeType.ALL, orphanRemoval = true)
     List<Diary> diaries = new ArrayList<>();
+
+    public Plant(PlantRequestDto requestDto) {
+        this.name = name;
+        this.plantedAt = plantedAt;
+        this.germinatedAt = germinatedAt;
+        this.plantStage = plantStage;
+    }
+
+    public void update(PlantRequestDto requestDto) {
+        this.name = name;
+        this.plantStage = plantStage;
+        this.germinatedAt = germinatedAt;
+    }
 }
