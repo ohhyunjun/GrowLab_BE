@@ -25,6 +25,11 @@ public record PrincipalDetails(User user) implements UserDetails {
     }
 
     @Override
+    public String getUsername() {
+        return this.user.getUsername();
+    }
+
+    @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return Collections.singleton(this.user.getUserRole());
     }
