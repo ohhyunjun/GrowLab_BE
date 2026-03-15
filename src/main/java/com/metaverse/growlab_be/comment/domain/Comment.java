@@ -1,5 +1,6 @@
 package com.metaverse.growlab_be.comment.domain;
 
+import com.metaverse.growlab_be.article.domain.Article;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,4 +18,8 @@ public class Comment {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "article_id", nullable = false)
+    private Article article;
 }
