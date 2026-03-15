@@ -17,10 +17,10 @@ import java.util.function.Function;
 @Component
 public class JwtUtil {
     // @Value 애너테이션을 통해 application.properties의 환경 변수 로드
-    @Value("${jwt.secret}")
+    @Value("${jwt.secret.key}")
     private String secretKey;
 
-    @Value("${jwt.expriation")
+    @Value("${jwt.expriation.time")
     private Long expirationTime;
 
     // SecretKey를 Base64로 인코딩하여 저장

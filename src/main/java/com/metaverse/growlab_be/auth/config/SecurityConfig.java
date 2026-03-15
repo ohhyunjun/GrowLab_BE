@@ -1,5 +1,6 @@
 package com.metaverse.growlab_be.auth.config;
 
+import com.metaverse.growlab_be.auth.filter.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,12 +12,13 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration // 스프링부트 설정 빈으로 등록
 @EnableWebSecurity // 스프링시큐리티 활성화
 @RequiredArgsConstructor
 public class SecurityConfig {
-    private final PasswordEncoder passwordEncoder;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     // Authentication Manager 빈 등록
     @Bean
@@ -42,7 +44,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests((authorize) -> authorize
                         .requestMatchers("api/auth/**").permitAll()
                         .anyRequest().authenticated()
-                );
+                )
+                // 커스텀한 JWT 필터를 UsernamePasswordAuthenticationFilter 전에 추가
+                // 이 필터는 요청 헤더의 JWT 토큰을 검증하고 SecurityContext에 인증 정보를 설정
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 }
