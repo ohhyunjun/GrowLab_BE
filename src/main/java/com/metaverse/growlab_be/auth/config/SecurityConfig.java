@@ -28,6 +28,7 @@ public class SecurityConfig {
 
     // 스프링시큐리티의 필터체인을 빈으로 등록, 규칙 정의
     // 참고 공식 문서 https://docs.spring.io/spring-security/reference/6.5/servlet/architecture.html#servlet-security-filters
+    @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 // CSRF(Cross-Site Request Forgery) 교차 요청 위조 공격

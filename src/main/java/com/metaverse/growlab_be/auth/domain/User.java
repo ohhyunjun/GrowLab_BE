@@ -35,6 +35,13 @@ public class User extends TimeStamped implements UserDetails {
     @Enumerated(EnumType.STRING)
     private UserRole userRole;
 
+    public User(String username, String password, String email, UserRole userRole) {
+        this.username = username;
+        this.password = password;
+        this.email = email;
+        this.userRole = userRole;
+    }
+
     // UserDetails 인터페이스에 존재하는 추상메서드 구현체 부분 (Override)
     @Override
     public String getPassword() {
