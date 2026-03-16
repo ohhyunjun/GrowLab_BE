@@ -1,5 +1,6 @@
 package com.metaverse.growlab_be.plant.domain;
 
+import com.metaverse.growlab_be.common.domain.TimeStamped;
 import com.metaverse.growlab_be.diary.domain.Diary;
 import com.metaverse.growlab_be.plant.dto.PlantRequestDto;
 import jakarta.persistence.*;
@@ -7,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +18,7 @@ import java.util.List;
 @NoArgsConstructor
 @Entity
 @Table(name = "plant")
-public class Plant {
+public class Plant extends TimeStamped {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
