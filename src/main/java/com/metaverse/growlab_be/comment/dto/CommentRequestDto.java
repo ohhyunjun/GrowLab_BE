@@ -1,4 +1,8 @@
 package com.metaverse.growlab_be.comment.dto;
 
+import lombok.Getter;
+
+@Getter
 public class CommentRequestDto {
+    private String content;
 }

@@ -1,6 +1,7 @@
 package com.metaverse.growlab_be.comment.domain;
 
 import com.metaverse.growlab_be.article.domain.Article;
+import com.metaverse.growlab_be.comment.dto.CommentRequestDto;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,4 +23,13 @@ public class Comment {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "article_id", nullable = false)
     private Article article;
+
+    public Comment(CommentRequestDto commentRequestDto, Article article) {
+        this.content = commentRequestDto.getContent();
+        this.article = article;
+    }
+
+    public void update(CommentRequestDto commentRequestDto) {
+        this.content = commentRequestDto.getContent();
+    }
 }
