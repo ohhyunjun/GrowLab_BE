@@ -50,8 +50,17 @@ public class ArticleService {
         articleRepository.delete(foundArticle);
     }
 
+    //좋아요 시스템이 구현이 안되어 있어서 일단 놔둠
+    public List<ArticleResponseDto> getLikedArticles() {
+        return null;
+    }
+
+    public void toggleArticleLike(Long articleId) {
+        return;
+    }
+
     public Article findArticleById(Long articleId) {
         return articleRepository.findById(articleId).orElseThrow(() ->
-                new IllegalArgumentException("선택한 id의 게시판은 존재하지 않습니다."));
+                new IllegalArgumentException("선택한 id의 게시글은 존재하지 않습니다."));
     }
 }

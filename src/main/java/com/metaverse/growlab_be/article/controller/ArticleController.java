@@ -45,4 +45,16 @@ public class ArticleController {
         articleService.deleteArticle(articleId);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/liked")
+    public ResponseEntity<List<ArticleResponseDto>> getLikedArticles() {
+        List<ArticleResponseDto> articleResponseDtoList = articleService.getLikedArticles();
+        return ResponseEntity.ok(articleResponseDtoList);
+    }
+
+    @PostMapping("/{articleId}/likes")
+    public ResponseEntity<String> toggleArticleLike(@PathVariable Long articleId) {
+        articleService.toggleArticleLike(articleId);
+        return ResponseEntity.ok("좋아요 처리 완료");
+    }
 }
