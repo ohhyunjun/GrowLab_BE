@@ -2,6 +2,7 @@ package com.metaverse.growlab_be.article.domain;
 
 import com.metaverse.growlab_be.article.dto.ArticleRequestDto;
 import com.metaverse.growlab_be.comment.domain.Comment;
+import com.metaverse.growlab_be.common.TimeStamped;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,7 +16,7 @@ import java.util.List;
 @NoArgsConstructor
 @Entity
 @Table(name = "article")
-public class Article {
+public class Article extends TimeStamped {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
