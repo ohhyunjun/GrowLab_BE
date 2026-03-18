@@ -18,14 +18,14 @@ public class PlantController {
     private final PlantService plantService;
 
     // 1. 식물 등록 (POST /api/plants)
-    @PostMapping
+    @PostMapping()
     public ResponseEntity<PlantResponseDto> createPlant(@RequestBody PlantRequestDto plantRequestDto) {
         PlantResponseDto plantResponseDto = plantService.createPlant(plantRequestDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(plantResponseDto);
     }
 
     // 2. 전체 식물 목록 조회 (GET /api/plants)
-    @GetMapping
+    @GetMapping()
     public ResponseEntity<List<PlantResponseDto>> getPlants() {
         List<PlantResponseDto> plantResponseDtoList = plantService.getPlants();
         return ResponseEntity.ok(plantResponseDtoList);
