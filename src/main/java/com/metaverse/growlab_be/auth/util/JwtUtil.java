@@ -23,7 +23,7 @@ public class JwtUtil {
     @Value("${jwt.secret.key}")
     private String secretKey;
 
-    @Value("${jwt.expriation.time")
+    @Value("${jwt.expiration.time}")
     private Long expirationTime;
 
     // SecretKey를 Base64로 인코딩하여 저장

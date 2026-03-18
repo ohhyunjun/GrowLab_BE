@@ -57,8 +57,8 @@ public class SecurityConfig {
                 )
                 // 인가(Authorization) 부분으로 엔드포인트 접근 권한을 설정하는 부분
                 .authorizeHttpRequests((authorize) -> authorize
-                        .requestMatchers("api/auth/**").permitAll()
-                        .requestMatchers("api/sample/**").permitAll()
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/sample/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 // 커스텀한 JWT 필터를 UsernamePasswordAuthenticationFilter 전에 추가
