@@ -27,10 +27,10 @@ public class Plant extends TimeStamped {
     private String name; // 식물 이름
 
     @Column(nullable = false)
-    private LocalDate plantedAt; // 심은 날짜
+    private LocalDateTime plantedAt; // 심은 날짜
 
     @Column
-    private LocalDate germinatedAt; // 발아 날짜
+    private LocalDateTime germinatedAt; // 발아 날짜
 
     @Column(nullable = false)
     private String plantStage; // 성장 단계
