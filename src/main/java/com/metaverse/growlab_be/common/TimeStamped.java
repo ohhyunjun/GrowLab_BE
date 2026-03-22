@@ -1,4 +1,4 @@
-package com.metaverse.growlab_be.common.domain;
+package com.metaverse.growlab_be.common;
 
 import jakarta.persistence.*;
 import lombok.Getter;
