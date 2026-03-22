@@ -1,10 +1,8 @@
 package com.metaverse.growlab_be.device.domain;
 
+import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.common.domain.TimeStamped;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -25,4 +23,8 @@ public class Device extends TimeStamped {
 
     @Column(name="status")
     private Boolean status;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
 }
