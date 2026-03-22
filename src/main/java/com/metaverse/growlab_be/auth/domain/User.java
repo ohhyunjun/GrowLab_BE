@@ -1,10 +1,14 @@
 package com.metaverse.growlab_be.auth.domain;
 
+import com.metaverse.growlab_be.comment.domain.Comment;
 import com.metaverse.growlab_be.common.domain.TimeStamped;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Setter
@@ -36,4 +40,7 @@ public class User extends TimeStamped {
         this.email = email;
         this.userRole = userRole;
     }
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    List<Comment> comments = new ArrayList<>();
 }
