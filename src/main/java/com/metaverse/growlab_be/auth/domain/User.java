@@ -1,5 +1,6 @@
 package com.metaverse.growlab_be.auth.domain;
 
+import com.metaverse.growlab_be.article.domain.Article;
 import com.metaverse.growlab_be.comment.domain.Comment;
 import com.metaverse.growlab_be.common.domain.TimeStamped;
 import jakarta.persistence.*;
@@ -43,4 +44,7 @@ public class User extends TimeStamped {
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     List<Comment> comments = new ArrayList<>();
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    List<Article> articles = new ArrayList<>();
 }

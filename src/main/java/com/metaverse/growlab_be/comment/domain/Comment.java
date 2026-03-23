@@ -26,16 +26,17 @@ public class Comment extends TimeStamped {
     @JoinColumn(name = "article_id", nullable = false)
     private Article article;
 
-    public Comment(CommentRequestDto commentRequestDto, Article article) {
-        this.content = commentRequestDto.getContent();
-        this.article = article;
-    }
-
-    public void update(CommentRequestDto commentRequestDto) {
-        this.content = commentRequestDto.getContent();
-    }
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    public Comment(String content, Article article, User user) {
+        this.content = content;
+        this.article = article;
+        this.user = user;
+    }
+
+    public void update(CommentRequestDto commentRequestDto) {
+        this.content = commentRequestDto.getContent();;
+    }
 }
