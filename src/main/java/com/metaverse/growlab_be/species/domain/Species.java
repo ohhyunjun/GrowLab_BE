@@ -32,4 +32,8 @@ public class Species extends TimeStamped {
     @Column(length = 500)
     private String aiPromptGuideline;
 
+    // Plant와 1:N 관계
+    @OneToMany(mappedBy = "species", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Plant> plants = new ArrayList<>();
+
 }
