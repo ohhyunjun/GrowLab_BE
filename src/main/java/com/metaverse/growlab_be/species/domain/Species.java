@@ -2,6 +2,7 @@ package com.metaverse.growlab_be.species.domain;
 
 import com.metaverse.growlab_be.common.domain.TimeStamped;
 import com.metaverse.growlab_be.plant.domain.Plant;
+import com.metaverse.growlab_be.species.dto.SpeciesRequestDto;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -26,7 +27,7 @@ public class Species extends TimeStamped {
 
     // 발아 후 성체까지 걸리는 평균 일수
     @Column(nullable = false)
-    private Integer daysToMature;
+    private int daysToMature;
 
     // AI 분석을 위한 가이드라인 텍스트
     @Column(length = 500)
@@ -36,4 +37,15 @@ public class Species extends TimeStamped {
     @OneToMany(mappedBy = "species", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Plant> plants = new ArrayList<>();
 
+    public Species(SpeciesRequestDto speciesRequestDto) {
+        this.name = speciesRequestDto.getName();
+        this.daysToMature = speciesRequestDto.getDaysToMature();
+        this.aiPromptGuideline = speciesRequestDto.getAiPromptGuideline();
+    }
+
+    public void update(SpeciesRequestDto speciesRequestDto) {
+        this.name = speciesRequestDto.getName();
+        this.daysToMature = speciesRequestDto.getDaysToMature();
+        this.aiPromptGuideline = speciesRequestDto.getAiPromptGuideline();
+    }
 }
