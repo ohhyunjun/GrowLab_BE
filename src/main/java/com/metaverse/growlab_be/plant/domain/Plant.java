@@ -3,6 +3,7 @@ package com.metaverse.growlab_be.plant.domain;
 import com.metaverse.growlab_be.common.domain.TimeStamped;
 import com.metaverse.growlab_be.diary.domain.Diary;
 import com.metaverse.growlab_be.plant.dto.PlantRequestDto;
+import com.metaverse.growlab_be.species.domain.Species;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -39,16 +40,16 @@ public class Plant extends TimeStamped {
     @OneToMany(mappedBy = "plant", cascade = CascadeType.ALL, orphanRemoval = true)
     List<Diary> diaries = new ArrayList<>();
 
-    public Plant(PlantRequestDto requestDto) {
-        this.name = name;
-        this.plantedAt = plantedAt;
-        this.germinatedAt = germinatedAt;
-        this.plantStage = plantStage;
+    public Plant(PlantRequestDto plantRequestDto) {
+        this.name = plantRequestDto.getName();
+        this.plantedAt = plantRequestDto.getPlantedAt();
+        this.germinatedAt = plantRequestDto.getGerminatedAt();
+        this.plantStage = plantRequestDto.getPlantStage();
     }
 
-    public void update(PlantRequestDto requestDto) {
-        this.name = name;
-        this.plantStage = plantStage;
-        this.germinatedAt = germinatedAt;
+    public void update(PlantRequestDto plantRequestDtorequestDto) {
+        this.name = plantRequestDtorequestDto.getName();
+        this.plantStage = plantRequestDtorequestDto.getPlantStage();
+        this.germinatedAt = plantRequestDtorequestDto.getGerminatedAt();
     }
 }
