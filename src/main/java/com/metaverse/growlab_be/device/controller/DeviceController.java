@@ -5,6 +5,7 @@ import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.device.dto.DeviceCreateRequestDto;
 import com.metaverse.growlab_be.device.dto.DeviceRegistrationRequestDto;
 import com.metaverse.growlab_be.device.service.DeviceService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,7 +23,7 @@ public class DeviceController {
     private final DeviceService deviceService;
 
     public ResponseEntity<String> registerDevice(
-            @RequestBody DeviceCreateRequestDto requestDto,
+            @Valid @RequestBody DeviceCreateRequestDto requestDto,
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
 
         try {
