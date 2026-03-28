@@ -27,4 +27,10 @@ public class Device extends TimeStamped {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;
+
+    public Device(String id, String deviceNickname) {
+        this.id = id;
+        this.deviceNickname = deviceNickname;
+        this.status = false;
+    }
 }

@@ -2,9 +2,11 @@ package com.metaverse.growlab_be.device.service;
 
 import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.device.domain.Device;
+import com.metaverse.growlab_be.device.dto.DeviceCreateRequestDto;
 import com.metaverse.growlab_be.device.repository.DeviceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -23,5 +25,16 @@ public class DeviceService {
         device.setUser(user);
         // 기기의 상태 변경
         device.setStatus(true);
+    }
+
+    @Transactional
+    public void createDeviceByAdmin(DeviceCreateRequestDto requestDto) {
+        if (deviceRepository.existsById(requestDto.getSerialNumber())) {
+            throw new IllegalArgumentException("이미 존재하는 시리얼 번호입니다.");
+        }
+
+        Device newDevice = new Device(requestDto.getSerialNumber(), requestDto.getDeviceNickname());
+
+        deviceRepository.save(newDevice);
     }
 }
