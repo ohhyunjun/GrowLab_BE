@@ -56,6 +56,7 @@ public class Plant extends TimeStamped {
     public void update(PlantRequestDto plantRequestDtorequestDto) {
         this.name = plantRequestDtorequestDto.getName();
         this.plantStage = plantRequestDtorequestDto.getPlantStage();
+        this.plantedAt = plantRequestDtorequestDto.getPlantedAt();
         this.germinatedAt = plantRequestDtorequestDto.getGerminatedAt();
     }
 }
