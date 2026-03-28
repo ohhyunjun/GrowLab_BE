@@ -22,13 +22,13 @@ public class DeviceController {
     private final DeviceService deviceService;
 
     public ResponseEntity<String> registerDevice(
-            @RequestBody DeviceRegistrationRequestDto requestDto,
+            @RequestBody DeviceCreateRequestDto requestDto,
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
 
         try {
             User currentUser = principalDetails.getUser();
 
-            deviceService.registerDevice(requestDto.getSerialNumber(), currentUser);
+            deviceService.registerDevice(requestDto.getSerialNumber(), requestDto.getDeviceNickname(),currentUser);
 
             return ResponseEntity.ok("기기가 성공적으로 등록되었습니다.");
         } catch (IllegalArgumentException e) {
@@ -38,13 +38,13 @@ public class DeviceController {
         }
     }
 
-    @PostMapping("/admin/create")
+    @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<String> createDevice(@RequestBody DeviceCreateRequestDto requestDto) {
+    public ResponseEntity<String> createDevice(@RequestBody DeviceRegistrationRequestDto requestDto) {
         try {
-            deviceService.createDeviceByAdmin(requestDto);
+            deviceService.createDeviceByAdmin(requestDto.getSerialNumber());
             return ResponseEntity.status(HttpStatus.CREATED).body("기기가 성공적으로 생성되었습니다.");
-        } catch (IllegalArgumentException e){
+        } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
     }
