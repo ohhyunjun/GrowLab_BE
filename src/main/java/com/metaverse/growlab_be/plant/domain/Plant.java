@@ -40,11 +40,17 @@ public class Plant extends TimeStamped {
     @OneToMany(mappedBy = "plant", cascade = CascadeType.ALL, orphanRemoval = true)
     List<Diary> diaries = new ArrayList<>();
 
-    public Plant(PlantRequestDto plantRequestDto) {
+    // Species와의 N:1 관계
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "species_id", nullable = false)
+    private Species species;
+
+    public Plant(PlantRequestDto plantRequestDto, Species species) {
         this.name = plantRequestDto.getName();
         this.plantedAt = plantRequestDto.getPlantedAt();
         this.germinatedAt = plantRequestDto.getGerminatedAt();
         this.plantStage = plantRequestDto.getPlantStage();
+        this.species = species;
     }
 
     public void update(PlantRequestDto plantRequestDtorequestDto) {

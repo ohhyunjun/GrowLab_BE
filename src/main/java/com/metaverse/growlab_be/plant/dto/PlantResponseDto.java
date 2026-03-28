@@ -14,6 +14,8 @@ public class PlantResponseDto {
     private String plantStage;     // 현재 성장 단계
     private LocalDateTime plantedAt;      // 심은 날짜
     private LocalDateTime germinatedAt;   // 발아 날짜
+    private Long speciesId;       // 종 정보 (ID)
+    private String speciesName;   // 종 정보 (이름)
 
     public PlantResponseDto(Plant plant) {
         this.id = plant.getId();
@@ -21,5 +23,12 @@ public class PlantResponseDto {
         this.plantStage = plant.getPlantStage();
         this.plantedAt = plant.getPlantedAt();
         this.germinatedAt = plant.getGerminatedAt();
+
+
+        // Species 매핑
+        if (plant.getSpecies() != null) {
+            this.speciesId = plant.getSpecies().getId();
+            this.speciesName = plant.getSpecies().getName();
+        }
     }
 }
