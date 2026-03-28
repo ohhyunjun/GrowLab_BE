@@ -7,8 +7,8 @@ import com.metaverse.growlab_be.article.repository.ArticleRepository;
 import com.metaverse.growlab_be.auth.domain.PrincipalDetails;
 import com.metaverse.growlab_be.comment.domain.Comment;
 import com.metaverse.growlab_be.comment.dto.CommentResponseDto;
+import com.metaverse.growlab_be.file.service.FileService;
 import com.metaverse.growlab_be.likes.articleLike.domain.ArticleLike;
-import com.metaverse.growlab_be.likes.articleLike.dto.ArticleLikeResponseDto;
 import com.metaverse.growlab_be.likes.articleLike.repository.ArticleLikeRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -16,6 +16,7 @@ import com.metaverse.growlab_be.auth.domain.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,12 +26,18 @@ import java.util.List;
 public class ArticleService {
     private final ArticleRepository articleRepository;
     private final ArticleLikeRepository articleLikeRepository;
+    private final FileService fileService;
 
     @Transactional
-    public ArticleResponseDto createArticle(ArticleRequestDto articleRequestDto, PrincipalDetails principalDetails) {
+    public ArticleResponseDto createArticle(ArticleRequestDto articleRequestDto, PrincipalDetails principalDetails, MultipartFile file) {
         User logginedUser = principalDetails.user();
         Article newArticle = new Article(articleRequestDto, logginedUser);
         Article savedArticle = articleRepository.save(newArticle);
+
+        if (file != null && !file.isEmpty()) {
+            fileService.uploadFile(savedArticle, file);
+        }
+
         ArticleResponseDto articleResponseDto = new ArticleResponseDto(savedArticle);
         return articleResponseDto;
     }

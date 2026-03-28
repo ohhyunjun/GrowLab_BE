@@ -25,9 +25,10 @@ public class ArticleController {
 
     @PostMapping()
     public ResponseEntity<ArticleResponseDto> createArticle(
-            @RequestBody ArticleRequestDto articleRequestDto,
+            @RequestPart("articleData") ArticleRequestDto articleRequestDto,
+            @RequestPart(value = "file", required = false) MultipartFile file,
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
-        ArticleResponseDto articleResponseDto = articleService.createArticle(articleRequestDto, principalDetails);
+        ArticleResponseDto articleResponseDto = articleService.createArticle(articleRequestDto, principalDetails, file);
         return ResponseEntity.status(HttpStatus.CREATED).body(articleResponseDto);
     }
 

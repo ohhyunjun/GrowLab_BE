@@ -4,6 +4,7 @@ import com.metaverse.growlab_be.article.dto.ArticleRequestDto;
 import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.comment.domain.Comment;
 import com.metaverse.growlab_be.common.TimeStamped;
+import com.metaverse.growlab_be.file.domain.File;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -30,6 +31,9 @@ public class Article extends TimeStamped {
 
     @OneToMany(mappedBy = "article", cascade = CascadeType.ALL, orphanRemoval = true)
     List<Comment> comments = new ArrayList<>();
+
+    @OneToMany(mappedBy = "article", cascade = CascadeType.ALL, orphanRemoval = true)
+    List<File> files = new ArrayList<>();
 
     public Article(ArticleRequestDto articleRequestDto, User user) {
         this.title = articleRequestDto.getTitle();
