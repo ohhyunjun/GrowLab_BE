@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Getter
 @Setter
@@ -27,7 +28,7 @@ public class Diary extends TimeStamped {
     private String content;
 
     @Column(nullable = false)
-    private LocalDate targetDate; // Diary 작성 기준 날짜
+    private LocalDateTime targetDate; // Diary 작성 기준 날짜
 
     // Plant과의 N:1 관계
     @ManyToOne(fetch = FetchType.LAZY)
@@ -37,15 +38,13 @@ public class Diary extends TimeStamped {
     public Diary(DiaryRequestDto diaryRequestDto, Plant plant) {
         this.title = diaryRequestDto.getTitle();
         this.content = diaryRequestDto.getContent();
-        // String을 LocalDate로 변환해서 저장
-        this.targetDate = LocalDate.parse(diaryRequestDto.getTargetDate());
+        this.targetDate = diaryRequestDto.getTargetDate();
         this.plant = plant;
     }
 
     public void update(DiaryRequestDto diaryRequestDto) {
         this.title = diaryRequestDto.getTitle();
         this.content = diaryRequestDto.getContent();
-        // String을 LocalDate로 변환해서 저장
-        this.targetDate = LocalDate.parse(diaryRequestDto.getTargetDate());
+        this.targetDate = diaryRequestDto.getTargetDate();
     }
 }
