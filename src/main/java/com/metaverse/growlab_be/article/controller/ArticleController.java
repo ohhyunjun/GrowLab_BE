@@ -41,8 +41,10 @@ public class ArticleController {
     }
 
     @GetMapping("{articleId}")
-    public ResponseEntity<ArticleResponseDto> getArticleById(@PathVariable Long articleId) {
-        ArticleResponseDto articleResponseDto = articleService.getArticleById(articleId);
+    public ResponseEntity<ArticleResponseDto> getArticleById(
+            @PathVariable Long articleId,
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+        ArticleResponseDto articleResponseDto = articleService.getArticleById(articleId, principalDetails);
         return ResponseEntity.ok(articleResponseDto);
     }
 
@@ -58,18 +60,13 @@ public class ArticleController {
         return ResponseEntity.noContent().build();
     }
 
-//    @GetMapping("/liked")
-//    public ResponseEntity<List<ArticleResponseDto>> getLikedArticles(
-//            @RequestParam(value = "page", defaultValue = "0") int page,
-//            @RequestParam(value = "size", defaultValue = "10") int size) {
-//        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-//        List<ArticleResponseDto> articleResponseDtoList = articleService.getLikedArticles(pageable);
-//        return ResponseEntity.ok(articleResponseDtoList);
-//    }
-
-    @PostMapping("/{articleId}/likes")
-    public ResponseEntity<String> toggleArticleLike(@PathVariable Long articleId) {
-        articleService.toggleArticleLike(articleId);
-        return ResponseEntity.ok("좋아요 처리 완료");
+    @GetMapping("liked")
+    public ResponseEntity<List<ArticleResponseDto>> getLikedArticles(
+            @AuthenticationPrincipal PrincipalDetails principalDetails,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "10") int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        List<ArticleResponseDto> articleResponseDtoList = articleService.getLikedArticles(pageable, principalDetails);
+        return ResponseEntity.ok(articleResponseDtoList);
     }
 }

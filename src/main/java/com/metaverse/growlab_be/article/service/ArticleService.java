@@ -5,6 +5,11 @@ import com.metaverse.growlab_be.article.dto.ArticleRequestDto;
 import com.metaverse.growlab_be.article.dto.ArticleResponseDto;
 import com.metaverse.growlab_be.article.repository.ArticleRepository;
 import com.metaverse.growlab_be.auth.domain.PrincipalDetails;
+import com.metaverse.growlab_be.comment.domain.Comment;
+import com.metaverse.growlab_be.comment.dto.CommentResponseDto;
+import com.metaverse.growlab_be.likes.articleLike.domain.ArticleLike;
+import com.metaverse.growlab_be.likes.articleLike.dto.ArticleLikeResponseDto;
+import com.metaverse.growlab_be.likes.articleLike.repository.ArticleLikeRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import com.metaverse.growlab_be.auth.domain.User;
@@ -12,12 +17,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class ArticleService {
     private final ArticleRepository articleRepository;
+    private final ArticleLikeRepository articleLikeRepository;
 
     @Transactional
     public ArticleResponseDto createArticle(ArticleRequestDto articleRequestDto, PrincipalDetails principalDetails) {
@@ -34,10 +41,26 @@ public class ArticleService {
         return articleResponseDtoPaginationList;
     }
 
+    //인용쌤 코드에서 gpt한테 댓글 좋아요만 빼고 게시글 좋아요만 남겨달라고 해서 만듦
     @Transactional(readOnly = true)
-    public ArticleResponseDto getArticleById(Long articleId) {
+    public ArticleResponseDto getArticleById(Long articleId, PrincipalDetails principalDetails) {
         Article foundArticle = getValidArticleById(articleId);
-        ArticleResponseDto articleResponseDto = new ArticleResponseDto(foundArticle);
+        User logginedUser = principalDetails.user();
+
+        int currentLikesCount = (int) articleLikeRepository.countByArticle(foundArticle);
+        boolean liked = false;
+        if (logginedUser != null) {
+            liked = articleLikeRepository.findByArticleAndUser(foundArticle, logginedUser).isPresent();
+        }
+
+        List<Comment> comments = foundArticle.getComments();
+        List<CommentResponseDto> commentResponseDtos = new ArrayList<>();
+
+        for (Comment comment : comments) {
+            commentResponseDtos.add(new CommentResponseDto(comment));
+        }
+
+        ArticleResponseDto articleResponseDto = new ArticleResponseDto(foundArticle, currentLikesCount, liked, commentResponseDtos);
         return articleResponseDto;
     }
 
@@ -54,17 +77,24 @@ public class ArticleService {
         articleRepository.delete(foundArticle);
     }
 
-    //좋아요 시스템이 구현이 안되어 있어서 일단 놔둠
-    public List<ArticleResponseDto> getLikedArticles() {
-        return null;
-    }
-
-    public void toggleArticleLike(Long articleId) {
-        return;
-    }
-
     public Article getValidArticleById(Long articleId) {
         return articleRepository.findById(articleId).orElseThrow(() ->
                 new IllegalArgumentException("선택한 id의 게시글은 존재하지 않습니다."));
+    }
+
+    @Transactional(readOnly = true)
+    public List<ArticleResponseDto> getLikedArticles(Pageable pageable, PrincipalDetails principalDetails) {
+        User logginedUser = principalDetails.user();
+        Page<ArticleLike> articleLikes = articleLikeRepository.findByUser(logginedUser, pageable);
+
+        List<ArticleResponseDto> articleResponseDtos = articleLikes.stream()
+                .map(articleLike -> {
+                    Article article = articleLike.getArticle();
+                    int likesCount = (int) articleLikeRepository.countByArticle(article);
+                    return new ArticleResponseDto(article, likesCount, true);
+                })
+                .toList();
+
+        return articleResponseDtos;
     }
 }

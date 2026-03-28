@@ -28,6 +28,15 @@ public class CommentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(commentResponseDto);
     }
 
+    @GetMapping("/articles/{articleId}/comments/{commentId}")
+    public ResponseEntity<CommentResponseDto> getCommentById(
+            @PathVariable Long articleId,
+            @PathVariable Long commentId,
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+        CommentResponseDto commentResponseDto = commentService.getCommentById(articleId, commentId, principalDetails);
+        return ResponseEntity.ok(commentResponseDto);
+    }
+
     // 2. 게시글 댓글 조회
     @GetMapping("/articles/{articleId}/comments")
     public ResponseEntity<List<CommentResponseDto>> getCommentsByArticle(@PathVariable Long articleId) {

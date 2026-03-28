@@ -33,6 +33,7 @@ public class CommentResponseDto {
         } else {
             this.articleId = null;
         }
+
         this.createdAt = comment.getCreatedAt();
         this.updatedAt = comment.getUpdatedAt();
     }

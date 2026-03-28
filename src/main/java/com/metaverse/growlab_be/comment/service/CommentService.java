@@ -75,4 +75,17 @@ public class CommentService {
         return articleRepository.findById(id).orElseThrow(() ->
                 new IllegalArgumentException("선택한 id의 게시글은 존재하지 않습니다."));
     }
+
+    public CommentResponseDto getCommentById(Long articleId, Long commentId, PrincipalDetails principalDetails) {
+        Comment comment = getValidComment(articleId, commentId);
+        return new CommentResponseDto(comment);
+    }
+
+    public Comment getValidComment(Long articleId, Long commentId) {
+        articleService.getValidArticleById(articleId);
+
+        return commentRepository.findByIdAndArticleId(commentId, articleId).orElseThrow(() ->
+                new IllegalArgumentException("게시글(ID: " + articleId + ")에서 댓글(ID: " + commentId + ")을 찾을 수 없습니다.")
+        );
+    }
 }
