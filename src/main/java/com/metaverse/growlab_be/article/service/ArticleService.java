@@ -42,10 +42,13 @@ public class ArticleService {
         return articleResponseDto;
     }
 
-    @Transactional(readOnly = true)
-    public Page<ArticleResponseDto> getArticles(Pageable pageable) {
-        Page<ArticleResponseDto> articleResponseDtoPaginationList = articleRepository.findAllByOrderByCreatedAtDesc(pageable).map(ArticleResponseDto::new);
-        return articleResponseDtoPaginationList;
+    public Page<ArticleResponseDto> getArticles(Pageable pageable, PrincipalDetails principalDetails) {
+        User logginedUser = principalDetails != null ? principalDetails.user() : null;
+        return articleRepository.findAllByOrderByCreatedAtDesc(pageable).map(article -> {
+            int likesCount = (int) articleLikeRepository.countByArticle(article);
+            boolean liked = logginedUser != null && articleLikeRepository.findByArticleAndUser(article, logginedUser).isPresent();
+            return new ArticleResponseDto(article, likesCount, liked);
+        });
     }
 
     //인용쌤 코드에서 gpt한테 댓글 좋아요만 빼고 게시글 좋아요만 남겨달라고 해서 만듦

@@ -34,10 +34,11 @@ public class ArticleController {
 
     @GetMapping()
     public ResponseEntity<Page<ArticleResponseDto>> getArticles(
+            @AuthenticationPrincipal PrincipalDetails principalDetails,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Page<ArticleResponseDto> articleResponseDtoPaginationList = articleService.getArticles(pageable);
+        Page<ArticleResponseDto> articleResponseDtoPaginationList = articleService.getArticles(pageable, principalDetails);
         return ResponseEntity.ok(articleResponseDtoPaginationList);
     }
 
