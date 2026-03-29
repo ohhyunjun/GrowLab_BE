@@ -1,18 +1,15 @@
 package com.metaverse.growlab_be.likes.articleLike.controller;
 
-import com.metaverse.growlab_be.article.dto.ArticleResponseDto;
 import com.metaverse.growlab_be.auth.domain.PrincipalDetails;
 import com.metaverse.growlab_be.likes.articleLike.dto.ArticleLikeResponseDto;
 import com.metaverse.growlab_be.likes.articleLike.service.ArticleLikeService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("api/articles")

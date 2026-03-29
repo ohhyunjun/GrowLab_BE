@@ -1,7 +1,6 @@
 package com.metaverse.growlab_be.likes.articleLike.service;
 
 import com.metaverse.growlab_be.article.domain.Article;
-import com.metaverse.growlab_be.article.dto.ArticleResponseDto;
 import com.metaverse.growlab_be.article.service.ArticleService;
 import com.metaverse.growlab_be.auth.domain.PrincipalDetails;
 import com.metaverse.growlab_be.auth.domain.User;
@@ -9,12 +8,9 @@ import com.metaverse.growlab_be.likes.articleLike.domain.ArticleLike;
 import com.metaverse.growlab_be.likes.articleLike.dto.ArticleLikeResponseDto;
 import com.metaverse.growlab_be.likes.articleLike.repository.ArticleLikeRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Optional;
 
 @Service
