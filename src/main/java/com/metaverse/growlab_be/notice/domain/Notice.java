@@ -1,5 +1,6 @@
 package com.metaverse.growlab_be.notice.domain;
 
+import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.common.domain.TimeStamped;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -35,4 +36,8 @@ public class Notice extends TimeStamped {
 
     @Column(name = "additional_date")
     private LocalDateTime additionalDate;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 }
