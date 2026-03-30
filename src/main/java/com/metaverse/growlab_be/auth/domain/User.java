@@ -1,10 +1,14 @@
 package com.metaverse.growlab_be.auth.domain;
 
 import com.metaverse.growlab_be.common.domain.TimeStamped;
+import com.metaverse.growlab_be.diary.domain.Diary;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Setter
@@ -29,6 +33,10 @@ public class User extends TimeStamped {
     @Column(name = "user_role")
     @Enumerated(EnumType.STRING)
     private UserRole userRole;
+
+    // Diary와의 1:N 관계 설정
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Diary> diaries = new ArrayList<>();
 
     public User(String username, String password, String email, UserRole userRole) {
         this.username = username;

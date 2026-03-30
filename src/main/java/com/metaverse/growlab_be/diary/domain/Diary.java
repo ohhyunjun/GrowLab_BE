@@ -1,5 +1,6 @@
 package com.metaverse.growlab_be.diary.domain;
 
+import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.common.domain.TimeStamped;
 import com.metaverse.growlab_be.diary.dto.DiaryRequestDto;
 import com.metaverse.growlab_be.plant.domain.Plant;
@@ -35,11 +36,17 @@ public class Diary extends TimeStamped {
     @JoinColumn(name = "plant_id", nullable = false)
     private Plant plant;
 
-    public Diary(DiaryRequestDto diaryRequestDto, Plant plant) {
+    // User와의 N:1 관계
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    public Diary(DiaryRequestDto diaryRequestDto, Plant plant, User user) {
         this.title = diaryRequestDto.getTitle();
         this.content = diaryRequestDto.getContent();
         this.targetDate = diaryRequestDto.getTargetDate();
         this.plant = plant;
+        this.user = user;
     }
 
     public void update(DiaryRequestDto diaryRequestDto) {
