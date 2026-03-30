@@ -22,10 +22,9 @@ public class NoticeController {
 
     // (관리자용) 모든 알림 조회
     @GetMapping()
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<NoticeResponseDto>> GetAllNotices(
+    public ResponseEntity<List<NoticeResponseDto>> getAllNotices(
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
-        List<NoticeResponseDto> noticeResponseDtoList = noticeService.getAllNotices(principalDetails.user());
+        List<NoticeResponseDto> noticeResponseDtoList = noticeService.getAllNotices(principalDetails.user().getId());
         return ResponseEntity.ok(noticeResponseDtoList);
     }
 
@@ -33,7 +32,7 @@ public class NoticeController {
     @GetMapping("/unread")
     public ResponseEntity<List<NoticeResponseDto>> getUnreadNotices(
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
-        List<NoticeResponseDto> noticeResponseDtoList = noticeService.getUnreadNotices(principalDetails.user());
+        List<NoticeResponseDto> noticeResponseDtoList = noticeService.getUnreadNotices(principalDetails.user().getId());
         return ResponseEntity.ok(noticeResponseDtoList);
     }
 
@@ -41,7 +40,7 @@ public class NoticeController {
     @GetMapping("/unread/count")
     public ResponseEntity<Long> getUnreadCount(
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
-        long count = noticeService.getUnreadCount(principalDetails.user());
+        long count = noticeService.getUnreadCount(principalDetails.user().getId());
         return ResponseEntity.ok(count);
     }
 
@@ -52,7 +51,7 @@ public class NoticeController {
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
         try {
             // 1. 서비스 로직 실행
-            noticeService.readNotice(noticeId, principalDetails.user());
+            noticeService.readNotice(noticeId, principalDetails.user().getId());
 
             // 2. 성공 시 메시지와 함께 200 OK 반환
             return ResponseEntity.ok("알림이 성공적으로 읽음 처리되었습니다.");
@@ -71,7 +70,7 @@ public class NoticeController {
     @PutMapping("/read-all")
     public ResponseEntity<Void> readAllNotices(
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
-        noticeService.readAllNotices(principalDetails.user());
+        noticeService.readAllNotices(principalDetails.user().getId());
         return ResponseEntity.ok().build();
     }
 
@@ -82,7 +81,7 @@ public class NoticeController {
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
         try {
             // 서비스에서 본인 확인 후 삭제 로직 수행
-            noticeService.deleteNotice(noticeId, principalDetails.user());
+            noticeService.deleteNotice(noticeId, principalDetails.user().getId());
 
             // 성공 시 메시지 반환
             return ResponseEntity.ok("알림이 삭제되었습니다.");

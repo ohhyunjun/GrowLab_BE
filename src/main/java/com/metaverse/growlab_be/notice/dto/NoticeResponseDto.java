@@ -1,11 +1,12 @@
 package com.metaverse.growlab_be.notice.dto;
 
 import com.metaverse.growlab_be.notice.domain.Notice;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Getter
-@NoArgsConstructor
+@AllArgsConstructor
 public class NoticeResponseDto {
     private Long id;
     private String deviceSerial;

@@ -5,6 +5,7 @@ import com.metaverse.growlab_be.notice.domain.Notice;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface NoticeRepository extends JpaRepository<Notice, Long> {
 
@@ -19,4 +20,7 @@ public interface NoticeRepository extends JpaRepository<Notice, Long> {
 
     // 읽지 않은 알림 개수 조회
     long countByUserAndIsReadFalse(User user);
+
+    // [보안] 특정 알림을 유저와 함께 조회
+    Optional<Notice> findByIdAndUser(Long id, User user);
 }
