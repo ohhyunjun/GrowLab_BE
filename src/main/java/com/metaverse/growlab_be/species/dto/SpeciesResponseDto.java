@@ -1,11 +1,12 @@
 package com.metaverse.growlab_be.species.dto;
 
 import com.metaverse.growlab_be.species.domain.Species;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Getter
-@NoArgsConstructor
+@AllArgsConstructor
 public class SpeciesResponseDto {
 
     private Long id;
