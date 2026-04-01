@@ -3,6 +3,7 @@ package com.metaverse.growlab_be.plant.domain;
 import com.metaverse.growlab_be.common.domain.TimeStamped;
 import com.metaverse.growlab_be.diary.domain.Diary;
 import com.metaverse.growlab_be.plant.dto.PlantRequestDto;
+import com.metaverse.growlab_be.species.domain.Species;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -39,16 +40,23 @@ public class Plant extends TimeStamped {
     @OneToMany(mappedBy = "plant", cascade = CascadeType.ALL, orphanRemoval = true)
     List<Diary> diaries = new ArrayList<>();
 
-    public Plant(PlantRequestDto requestDto) {
-        this.name = name;
-        this.plantedAt = plantedAt;
-        this.germinatedAt = germinatedAt;
-        this.plantStage = plantStage;
+    // Species와의 N:1 관계
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "species_id", nullable = false)
+    private Species species;
+
+    public Plant(PlantRequestDto plantRequestDto, Species species) {
+        this.name = plantRequestDto.getName();
+        this.plantedAt = plantRequestDto.getPlantedAt();
+        this.germinatedAt = plantRequestDto.getGerminatedAt();
+        this.plantStage = plantRequestDto.getPlantStage();
+        this.species = species;
     }
 
-    public void update(PlantRequestDto requestDto) {
-        this.name = name;
-        this.plantStage = plantStage;
-        this.germinatedAt = germinatedAt;
+    public void update(PlantRequestDto plantRequestDtorequestDto) {
+        this.name = plantRequestDtorequestDto.getName();
+        this.plantStage = plantRequestDtorequestDto.getPlantStage();
+        this.plantedAt = plantRequestDtorequestDto.getPlantedAt();
+        this.germinatedAt = plantRequestDtorequestDto.getGerminatedAt();
     }
 }
