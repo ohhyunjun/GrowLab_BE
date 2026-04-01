@@ -3,15 +3,20 @@ package com.metaverse.growlab_be.device.service;
 import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.device.domain.Device;
 import com.metaverse.growlab_be.device.dto.DeviceCreateRequestDto;
+import com.metaverse.growlab_be.device.dto.DeviceResponseDto;
 import com.metaverse.growlab_be.device.repository.DeviceRepository;
+import com.metaverse.growlab_be.plant.repository.PlantRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class DeviceService {
     private final DeviceRepository deviceRepository;
+    private final PlantRepository plantRepository;
 
     public void registerDevice(String serialNumber, String deviceNickname ,User user) {
         // 시리얼 번호로 DB에서 기기 찾기
@@ -30,6 +35,7 @@ public class DeviceService {
         // 기기의 상태 변경
         device.setStatus(true);
     }
+
 
     @Transactional
     public void createDeviceByAdmin(String serialNumber) {
