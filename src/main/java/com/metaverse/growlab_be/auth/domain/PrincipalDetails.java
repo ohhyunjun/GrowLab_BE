@@ -58,6 +58,10 @@ public record PrincipalDetails(User user) implements UserDetails {
         return true;
     }
 
+    public User getUser() {
+        return user;
+    }
+
 //     --- OAuth2User 인터페이스 메서드 구현 (필요시 사용)
 //    @Override
 //    public Map<String, Object> getAttributes() {

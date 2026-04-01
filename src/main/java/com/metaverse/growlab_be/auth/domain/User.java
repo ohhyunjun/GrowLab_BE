@@ -2,6 +2,7 @@ package com.metaverse.growlab_be.auth.domain;
 
 import com.metaverse.growlab_be.comment.domain.Comment;
 import com.metaverse.growlab_be.common.domain.TimeStamped;
+import com.metaverse.growlab_be.device.domain.Device;
 import com.metaverse.growlab_be.diary.domain.Diary;
 import com.metaverse.growlab_be.notice.domain.Notice;
 import jakarta.persistence.*;
@@ -36,6 +37,8 @@ public class User extends TimeStamped {
     @Enumerated(EnumType.STRING)
     private UserRole userRole;
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<Device> devices = new ArrayList<>();
     // Diary와의 1:N 관계 설정
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Diary> diaries = new ArrayList<>();
