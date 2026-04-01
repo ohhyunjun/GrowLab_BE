@@ -1,7 +1,9 @@
 package com.metaverse.growlab_be.auth.domain;
 
+import com.metaverse.growlab_be.article.domain.Article;
 import com.metaverse.growlab_be.comment.domain.Comment;
 import com.metaverse.growlab_be.common.domain.TimeStamped;
+import com.metaverse.growlab_be.likes.articleLike.domain.ArticleLike;
 import com.metaverse.growlab_be.device.domain.Device;
 import com.metaverse.growlab_be.diary.domain.Diary;
 import com.metaverse.growlab_be.notice.domain.Notice;
@@ -56,4 +58,10 @@ public class User extends TimeStamped {
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     List<Comment> comments = new ArrayList<>();
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    List<Article> articles = new ArrayList<>();
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ArticleLike> articleLikes = new ArrayList<>();
 }
