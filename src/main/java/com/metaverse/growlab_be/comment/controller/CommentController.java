@@ -1,11 +1,13 @@
 package com.metaverse.growlab_be.comment.controller;
 
+import com.metaverse.growlab_be.auth.domain.PrincipalDetails;
 import com.metaverse.growlab_be.comment.dto.CommentRequestDto;
 import com.metaverse.growlab_be.comment.dto.CommentResponseDto;
 import com.metaverse.growlab_be.comment.service.CommentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,9 +22,19 @@ public class CommentController {
     @PostMapping("/articles/{articleId}/comments")
     public ResponseEntity<CommentResponseDto> createComment(
             @RequestBody CommentRequestDto commentRequestDto,
-            @PathVariable Long articleId) {
-        CommentResponseDto commentResponseDto = commentService.createComment(commentRequestDto, articleId);
+            @PathVariable Long articleId,
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+        CommentResponseDto commentResponseDto = commentService.createComment(commentRequestDto, articleId, principalDetails);
         return ResponseEntity.status(HttpStatus.CREATED).body(commentResponseDto);
+    }
+
+    @GetMapping("/articles/{articleId}/comments/{commentId}")
+    public ResponseEntity<CommentResponseDto> getCommentById(
+            @PathVariable Long articleId,
+            @PathVariable Long commentId,
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+        CommentResponseDto commentResponseDto = commentService.getCommentById(articleId, commentId, principalDetails);
+        return ResponseEntity.ok(commentResponseDto);
     }
 
     // 2. 게시글 댓글 조회

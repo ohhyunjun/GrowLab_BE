@@ -2,6 +2,9 @@ package com.metaverse.growlab_be.comment.service;
 
 import com.metaverse.growlab_be.article.domain.Article;
 import com.metaverse.growlab_be.article.repository.ArticleRepository;
+import com.metaverse.growlab_be.article.service.ArticleService;
+import com.metaverse.growlab_be.auth.domain.PrincipalDetails;
+import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.comment.domain.Comment;
 import com.metaverse.growlab_be.comment.dto.CommentRequestDto;
 import com.metaverse.growlab_be.comment.dto.CommentResponseDto;
@@ -17,11 +20,13 @@ import java.util.List;
 public class CommentService {
     private final CommentRepository commentRepository;
     private final ArticleRepository articleRepository;
+    private final ArticleService articleService;
 
     @Transactional
-    public CommentResponseDto createComment(CommentRequestDto commentRequestDto, Long articleId) {
-        Article foundArticle = getValidArticleById(articleId);
-        Comment newComment = new Comment(commentRequestDto, foundArticle);
+    public CommentResponseDto createComment(CommentRequestDto commentRequestDto, Long articleId, PrincipalDetails principalDetails) {
+        User logginedUser = principalDetails.user();
+        Article foundArticle = articleService.getValidArticleById(articleId);
+        Comment newComment = new Comment(commentRequestDto.getContent(), foundArticle, logginedUser);
         Comment savedComment = commentRepository.save(newComment);
         CommentResponseDto commentResponseDto = new CommentResponseDto(savedComment);
         return commentResponseDto;
@@ -29,7 +34,7 @@ public class CommentService {
 
     @Transactional(readOnly = true)
     public List<CommentResponseDto> getCommentsByArticle(Long articleId) {
-        List<CommentResponseDto> commentResponseDtoList = commentRepository.findAllByArticleIdOrderByCreatedAtDesc(articleId).stream()
+        List<CommentResponseDto> commentResponseDtoList = commentRepository.findByArticleIdOrderByCreatedAtDesc(articleId).stream()
                 .map(CommentResponseDto::new).toList();
         return commentResponseDtoList;
     }
@@ -41,13 +46,11 @@ public class CommentService {
         return commentResponseDtoList;
     }
 
-//  아직 User가 없어서 userid의 부재로 에러나길래 잠시 주석처리하고 return null 해둠
     @Transactional(readOnly = true)
     public List<CommentResponseDto> getMyComments(Long userId) {
-//        List<CommentResponseDto> commentResponseDtoList = commentRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
-//                .map(CommentResponseDto::new).toList();
-//        return commentResponseDtoList;
-        return null;
+        List<CommentResponseDto> commentResponseDtoList = commentRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
+                .map(CommentResponseDto::new).toList();
+        return commentResponseDtoList;
     }
 
     @Transactional
@@ -71,5 +74,18 @@ public class CommentService {
     public Article getValidArticleById(Long id) {
         return articleRepository.findById(id).orElseThrow(() ->
                 new IllegalArgumentException("선택한 id의 게시글은 존재하지 않습니다."));
+    }
+
+    public CommentResponseDto getCommentById(Long articleId, Long commentId, PrincipalDetails principalDetails) {
+        Comment comment = getValidComment(articleId, commentId);
+        return new CommentResponseDto(comment);
+    }
+
+    public Comment getValidComment(Long articleId, Long commentId) {
+        articleService.getValidArticleById(articleId);
+
+        return commentRepository.findByIdAndArticleId(commentId, articleId).orElseThrow(() ->
+                new IllegalArgumentException("게시글(ID: " + articleId + ")에서 댓글(ID: " + commentId + ")을 찾을 수 없습니다.")
+        );
     }
 }
