@@ -4,6 +4,9 @@ import com.metaverse.growlab_be.article.domain.Article;
 import com.metaverse.growlab_be.comment.domain.Comment;
 import com.metaverse.growlab_be.common.domain.TimeStamped;
 import com.metaverse.growlab_be.likes.articleLike.domain.ArticleLike;
+import com.metaverse.growlab_be.device.domain.Device;
+import com.metaverse.growlab_be.diary.domain.Diary;
+import com.metaverse.growlab_be.notice.domain.Notice;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -35,6 +38,16 @@ public class User extends TimeStamped {
     @Column(name = "user_role")
     @Enumerated(EnumType.STRING)
     private UserRole userRole;
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<Device> devices = new ArrayList<>();
+    // Diary와의 1:N 관계 설정
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Diary> diaries = new ArrayList<>();
+
+    // Notice와의 1:N 관계 설정
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Notice> noticeList = new ArrayList<>();
 
     public User(String username, String password, String email, UserRole userRole) {
         this.username = username;
