@@ -1,11 +1,14 @@
 package com.metaverse.growlab_be.diary.controller;
 
+import com.metaverse.growlab_be.auth.domain.PrincipalDetails;
+import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.diary.dto.DiaryRequestDto;
 import com.metaverse.growlab_be.diary.dto.DiaryResponseDto;
 import com.metaverse.growlab_be.diary.service.DiaryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,16 +24,24 @@ public class DiaryController {
     @PostMapping()
     public ResponseEntity<DiaryResponseDto> createDiary(
             @RequestBody DiaryRequestDto diaryRequestDto,
-            @PathVariable Long plantId) {
-        DiaryResponseDto diaryResponseDto = diaryService.createDiary(diaryRequestDto, plantId);
+            @PathVariable Long plantId,
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+
+        // 현재 로그인한 유저 정보 가져오기
+        Long userId = principalDetails.user().getId();
+        DiaryResponseDto diaryResponseDto = diaryService.createDiary(diaryRequestDto, plantId, userId);
         return ResponseEntity.status(HttpStatus.CREATED).body(diaryResponseDto);
     }
 
     // 특정 식물의 Diary 전체 조회 (GET /api/plants/{plantId}/diaries)
     @GetMapping()
     public ResponseEntity<List<DiaryResponseDto>> getDiaries(
-            @PathVariable Long plantId) {
-        List<DiaryResponseDto> diaryResponseDtoList = diaryService.getDiaries(plantId);
+            @PathVariable Long plantId,
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+
+        // 현재 로그인한 유저 정보 가져오기
+        Long userId = principalDetails.user().getId();
+        List<DiaryResponseDto> diaryResponseDtoList = diaryService.getDiariesByPlantId(plantId, userId);
         return ResponseEntity.ok(diaryResponseDtoList);
     }
 
@@ -38,8 +49,12 @@ public class DiaryController {
     @GetMapping("/{id}")
     public ResponseEntity<DiaryResponseDto> getDiaryById(
             @PathVariable Long id,
-            @PathVariable Long plantId) {
-        DiaryResponseDto diaryResponseDto = diaryService.getDiaryById(id, plantId);
+            @PathVariable Long plantId,
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+
+        // 현재 로그인한 유저 정보 가져오기
+        Long userId = principalDetails.user().getId();
+        DiaryResponseDto diaryResponseDto = diaryService.getDiaryById(id, plantId, userId);
         return ResponseEntity.ok(diaryResponseDto);
     }
 
@@ -48,8 +63,12 @@ public class DiaryController {
     public ResponseEntity<DiaryResponseDto> updateDiary(
             @PathVariable Long id,
             @RequestBody DiaryRequestDto diaryRequestDto,
-            @PathVariable Long plantId) {
-        DiaryResponseDto diaryResponseDto = diaryService.updateDiary(id, diaryRequestDto, plantId);
+            @PathVariable Long plantId,
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+
+        // 현재 로그인한 유저 정보 가져오기
+        Long userId = principalDetails.user().getId();
+        DiaryResponseDto diaryResponseDto = diaryService.updateDiary(id, diaryRequestDto, plantId, userId);
         return ResponseEntity.ok(diaryResponseDto);
     }
 
@@ -57,8 +76,12 @@ public class DiaryController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteDiary(
             @PathVariable Long id,
-            @PathVariable Long plantId) {
-        diaryService.deleteDiary(id, plantId);
+            @PathVariable Long plantId,
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+
+        // 현재 로그인한 유저 정보 가져오기
+        Long userId = principalDetails.user().getId();
+        diaryService.deleteDiary(id, plantId, userId);
         return ResponseEntity.noContent().build();
     }
 }

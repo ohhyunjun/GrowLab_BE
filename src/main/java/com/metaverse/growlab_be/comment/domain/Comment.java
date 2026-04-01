@@ -1,6 +1,7 @@
 package com.metaverse.growlab_be.comment.domain;
 
 import com.metaverse.growlab_be.article.domain.Article;
+import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.comment.dto.CommentRequestDto;
 import com.metaverse.growlab_be.common.TimeStamped;
 import jakarta.persistence.*;
@@ -33,4 +34,8 @@ public class Comment extends TimeStamped {
     public void update(CommentRequestDto commentRequestDto) {
         this.content = commentRequestDto.getContent();
     }
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 }

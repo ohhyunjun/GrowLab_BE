@@ -4,6 +4,8 @@ import com.metaverse.growlab_be.plant.domain.Plant;
 import com.metaverse.growlab_be.plant.dto.PlantRequestDto;
 import com.metaverse.growlab_be.plant.dto.PlantResponseDto;
 import com.metaverse.growlab_be.plant.repository.PlantRepository;
+import com.metaverse.growlab_be.species.domain.Species;
+import com.metaverse.growlab_be.species.repository.SpeciesRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,12 +19,17 @@ import java.util.List;
 public class PlantService {
 
     private final PlantRepository plantRepository;
+    private final SpeciesRepository speciesRepository;
 
     // 식물 등록하기
     @Transactional
     public PlantResponseDto createPlant(PlantRequestDto plantRequestDto) {
+        // 품종 ID로 품종 엔티티 찾기
+        Species species = speciesRepository.findById(plantRequestDto.getSpeciesId())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 품종입니다."));
+
         // ResquestDto -> Plant 엔티티로 변환
-        Plant newPlant = new Plant(plantRequestDto);
+        Plant newPlant = new Plant(plantRequestDto, species);
 
         // DB에 저장
         Plant savedPlant = plantRepository.save(newPlant);
