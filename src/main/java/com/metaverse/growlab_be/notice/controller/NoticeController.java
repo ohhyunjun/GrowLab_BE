@@ -1,17 +1,14 @@
 package com.metaverse.growlab_be.notice.controller;
 
 import com.metaverse.growlab_be.auth.domain.PrincipalDetails;
-import com.metaverse.growlab_be.notice.dto.NoticeRequestDto;
 import com.metaverse.growlab_be.notice.dto.NoticeResponseDto;
 import com.metaverse.growlab_be.notice.service.NoticeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/notices")
@@ -54,7 +51,7 @@ public class NoticeController {
             noticeService.readNotice(noticeId, principalDetails.user().getId());
 
             // 2. 성공 시 메시지와 함께 200 OK 반환
-            return ResponseEntity.ok("알림이 성공적으로 읽음 처리되었습니다.");
+            return ResponseEntity.ok("알림이 읽음 처리되었습니다.");
 
         } catch (IllegalArgumentException e) {
             // 3. 존재하지 않는 알림 등 로직 에러 시 400 Bad Request

@@ -21,7 +21,7 @@ public class NoticeResponseDto {
         this.deviceSerial = notice.getDeviceSerial();
         this.message = notice.getMessage();
         this.isRead = notice.isRead();
-        this.noticeType = notice.getNoticeType();
+        this.noticeType = notice.getNoticeType().name();
         this.priority = notice.getPriority();
         this.additionalData = notice.getAdditionalData();
     }

@@ -6,7 +6,6 @@ import com.metaverse.growlab_be.notice.domain.Notice;
 import com.metaverse.growlab_be.notice.dto.NoticeResponseDto;
 import com.metaverse.growlab_be.notice.repository.NoticeRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,7 +13,6 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-
 public class NoticeService {
 
     private final NoticeRepository noticeRepository;
