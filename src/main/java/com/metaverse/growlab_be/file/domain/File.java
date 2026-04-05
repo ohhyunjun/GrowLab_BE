@@ -13,6 +13,7 @@ import lombok.Setter;
 @Entity
 @Table(name = "file")
 public class File extends TimeStamped {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -26,6 +27,7 @@ public class File extends TimeStamped {
     @Column(nullable = false)
     private String filePath;
 
+    // Article와의 N:1 관계 설정
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "article_id", nullable = false)
     private Article article;

@@ -24,6 +24,7 @@ public class Device extends TimeStamped {
     @Column(name="status")
     private Boolean status;
 
+    // User와의 N:1 관계 설정
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;
