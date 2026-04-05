@@ -8,6 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Getter
 @AllArgsConstructor
@@ -27,6 +28,8 @@ public class PlantResponseDto {
 
     private Long speciesId;       // 종 정보 (ID)
     private String speciesName;   // 종 정보 (이름)
+    private Integer daysToMature;
+
     private PlantStage plantStage;     // 현재 성장 단계
 
     private String deviceSerial;
@@ -52,11 +55,19 @@ public class PlantResponseDto {
         this.createdAt = plant.getCreatedAt();
         this.updatedAt = plant.getUpdatedAt();
 
+        this.deviceSerial = plant.getDevice().getId();
+        this.deviceNickname = plant.getDevice().getDeviceNickname();
+
+        this.diaries = plant.getDiaries()
+                .stream()
+                .map(DiaryResponseDto::new)
+                .collect(Collectors.toList());
 
         // Species 매핑
         if (plant.getSpecies() != null) {
             this.speciesId = plant.getSpecies().getId();
             this.speciesName = plant.getSpecies().getName();
+            this.daysToMature = plant.getSpecies().getDaysToMature();
         }
     }
 }
