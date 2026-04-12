@@ -2,6 +2,7 @@ package com.metaverse.growlab_be.device.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.metaverse.growlab_be.device.domain.Device;
+import com.metaverse.growlab_be.plant.domain.PlantStage;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -38,5 +39,6 @@ public class DeviceResponseDto {
         private Long id;
         private String name;
         private String species;
+        private PlantStage plantStage;
     }
 }
