@@ -4,17 +4,18 @@ import com.metaverse.growlab_be.auth.domain.PrincipalDetails;
 import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.device.dto.DeviceCreateRequestDto;
 import com.metaverse.growlab_be.device.dto.DeviceRegistrationRequestDto;
+import com.metaverse.growlab_be.device.dto.DeviceResponseDto;
 import com.metaverse.growlab_be.device.service.DeviceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("api/devices")
@@ -22,6 +23,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class DeviceController {
     private final DeviceService deviceService;
 
+    @GetMapping
+    public ResponseEntity<List<DeviceResponseDto>> getUserDevices(
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+        User currentUser = principalDetails.getUser();
+        List<DeviceResponseDto> devices = deviceService.getUserDevices(currentUser);
+        return ResponseEntity.ok(devices);
+    }
+
+    @PostMapping("/register")
     public ResponseEntity<String> registerDevice(
             @Valid @RequestBody DeviceCreateRequestDto requestDto,
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
@@ -47,6 +57,21 @@ public class DeviceController {
             return ResponseEntity.status(HttpStatus.CREATED).body("기기가 성공적으로 생성되었습니다.");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/{serialNumber}")
+    public ResponseEntity<String> deleteDevice(
+            @PathVariable String serialNumber,
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+        try {
+            User currentUser = principalDetails.getUser();
+            deviceService.deleteDevice(serialNumber, currentUser);
+            return ResponseEntity.ok("기기가 성공적으로 삭제되었습니다.");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
         }
     }
 }

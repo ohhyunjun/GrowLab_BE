@@ -15,6 +15,7 @@ import lombok.Setter;
 @Entity
 @Table(name = "comment")
 public class Comment extends TimeStamped {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -22,10 +23,12 @@ public class Comment extends TimeStamped {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    // Article와의 N:1 관계 설정
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "article_id", nullable = false)
     private Article article;
 
+    // User와의 N:1 관계 설정
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;

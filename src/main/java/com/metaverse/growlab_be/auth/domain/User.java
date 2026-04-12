@@ -49,19 +49,22 @@ public class User extends TimeStamped {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Notice> noticeList = new ArrayList<>();
 
+    // Comment와의 1:N 관계 설정
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    List<Comment> comments = new ArrayList<>();
+
+    // Article와의 1:N 관계 설정
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    List<Article> articles = new ArrayList<>();
+
+    // ArticleLike와의 1:N 관계 설정
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ArticleLike> articleLikes = new ArrayList<>();
+
     public User(String username, String password, String email, UserRole userRole) {
         this.username = username;
         this.password = password;
         this.email = email;
         this.userRole = userRole;
     }
-
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    List<Comment> comments = new ArrayList<>();
-
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    List<Article> articles = new ArrayList<>();
-
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ArticleLike> articleLikes = new ArrayList<>();
 }

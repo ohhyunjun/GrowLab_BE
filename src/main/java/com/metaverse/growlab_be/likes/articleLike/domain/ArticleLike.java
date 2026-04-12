@@ -16,14 +16,17 @@ import lombok.Setter;
         @UniqueConstraint(columnNames = {"user_id", "article_id"})
 })
 public class ArticleLike extends TimeStamped {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // article와의 N:1 관계 설정
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "article_id", nullable = false)
     private Article article;
 
+    // user와의 N:1 관계 설정
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;

@@ -29,11 +29,18 @@ public class Article extends TimeStamped {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    // Comment와의 1:N 관계 설정
     @OneToMany(mappedBy = "article", cascade = CascadeType.ALL, orphanRemoval = true)
     List<Comment> comments = new ArrayList<>();
 
+    // File와의 1:N 관계 설정
     @OneToMany(mappedBy = "article", cascade = CascadeType.ALL, orphanRemoval = true)
     List<File> files = new ArrayList<>();
+
+    // User와의 N:1 관계 설정
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     public Article(ArticleRequestDto articleRequestDto, User user) {
         this.title = articleRequestDto.getTitle();
@@ -45,8 +52,4 @@ public class Article extends TimeStamped {
         this.title = articleRequestDto.getTitle();
         this.content = articleRequestDto.getContent();
     }
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
 }

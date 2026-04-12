@@ -3,15 +3,22 @@ package com.metaverse.growlab_be.device.service;
 import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.device.domain.Device;
 import com.metaverse.growlab_be.device.dto.DeviceCreateRequestDto;
+import com.metaverse.growlab_be.device.dto.DeviceResponseDto;
 import com.metaverse.growlab_be.device.repository.DeviceRepository;
+import com.metaverse.growlab_be.plant.repository.PlantRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class DeviceService {
     private final DeviceRepository deviceRepository;
+    private final PlantRepository plantRepository;
 
     public void registerDevice(String serialNumber, String deviceNickname ,User user) {
         // 시리얼 번호로 DB에서 기기 찾기
@@ -25,11 +32,30 @@ public class DeviceService {
         device.setUser(user);
 
         // 기기 닉네임을 설정하는 로직
-        device.setDeviceNickname(device.getDeviceNickname());
+        device.setDeviceNickname(deviceNickname);
 
         // 기기의 상태 변경
         device.setStatus(true);
     }
+
+    @Transactional(readOnly = true)
+    public List<DeviceResponseDto> getUserDevices(User user) {
+        List<Device> devices = deviceRepository.findByUserId(user.getId());
+
+        return devices.stream().map(device -> {
+            DeviceResponseDto.PlantSummaryDto plantSummary = plantRepository.findByDeviceId(device.getId())
+                    .map(plant -> new DeviceResponseDto.PlantSummaryDto(
+                            plant.getId(),
+                            plant.getName(),
+                            plant.getSpecies().getName(),
+                            plant.getPlantStage()
+                    ))
+                    .orElse(null);
+
+            return new DeviceResponseDto(device, plantSummary);
+        }).collect(Collectors.toList());
+    }
+
 
     @Transactional
     public void createDeviceByAdmin(String serialNumber) {
@@ -40,5 +66,16 @@ public class DeviceService {
         Device newDevice = new Device(serialNumber, null);
 
         deviceRepository.save(newDevice);
+    }
+
+    public void deleteDevice(String serialNumber, User user) {
+        Device device = deviceRepository.findById(serialNumber)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기기입니다."));
+
+        if (!device.getUser().getId().equals(user.getId())) {
+            throw new AccessDeniedException("해당 기기에 대한 권한이 없습니다.");
+        }
+
+        deviceRepository.delete(device);
     }
 }
