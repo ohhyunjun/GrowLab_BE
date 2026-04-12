@@ -13,5 +13,5 @@ public class PlantRequestDto {
     private LocalDateTime germinatedAt; // 발아 날짜
     private LocalDateTime maturedAt; // 성숙 날짜
     private Long speciesId; // 종 이름
-    private String deviceSerial; // 시리얼 넘버
+    private String serialNumber; // 시리얼 넘버
 }
