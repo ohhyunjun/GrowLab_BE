@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -49,6 +50,14 @@ public class ArticleController {
         ArticleResponseDto articleResponseDto = articleService.getArticleById(articleId, principalDetails);
         return ResponseEntity.ok(articleResponseDto);
     }
+
+//    @GetMapping("/my")
+//    public ResponseEntity<Page<ArticleResponseDto>> getMyArticles(
+//            @AuthenticationPrincipal PrincipalDetails principalDetails,
+//            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+//        Page<ArticleResponseDto> myArticles = articleService.getMyArticle(principalDetails, pageable);
+//        return ResponseEntity.ok(myArticles);
+//    }
 
     @PutMapping("{articleId}")
     public ResponseEntity<ArticleResponseDto> updateArticle(@PathVariable Long articleId, @RequestBody ArticleRequestDto articleRequestDto) {
