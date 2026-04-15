@@ -20,6 +20,7 @@ public class DeviceService {
     private final DeviceRepository deviceRepository;
     private final PlantRepository plantRepository;
 
+    @Transactional
     public void registerDevice(String serialNumber, String deviceNickname ,User user) {
         // 시리얼 번호로 DB에서 기기 찾기
         Device device = deviceRepository.findById(serialNumber)
