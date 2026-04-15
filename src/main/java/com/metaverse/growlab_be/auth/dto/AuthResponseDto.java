@@ -8,6 +8,7 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor
 public class AuthResponseDto {
+    private Long userId;
     private String username;
     private String accessToken;
 }
