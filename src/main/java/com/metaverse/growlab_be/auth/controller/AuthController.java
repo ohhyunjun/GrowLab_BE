@@ -1,5 +1,6 @@
 package com.metaverse.growlab_be.auth.controller;
 
+import com.metaverse.growlab_be.auth.domain.PrincipalDetails;
 import com.metaverse.growlab_be.auth.dto.AuthResponseDto;
 import com.metaverse.growlab_be.auth.dto.LoginRequestDto;
 import com.metaverse.growlab_be.auth.dto.SignUpRequestDto;
@@ -53,15 +54,15 @@ public class AuthController {
             );
             // 결과물 인증 객체 (UserDetails == Principal)
             // @AuthenticationPrincipal 애너테이션이 내부적으로 (UserDetails) 형변환을 해줌
-            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            PrincipalDetails principalDetails = (PrincipalDetails) authentication.getPrincipal(); // 수정
             // JWT 토큰 생성 (accessToken = jwtToken)
-            String accessToken = jwtUtil.generateToken(userDetails);
+            String accessToken = jwtUtil.generateToken(principalDetails);
 
-            return ResponseEntity.ok(new AuthResponseDto(userDetails.getUsername(), accessToken));
+            return ResponseEntity.ok(new AuthResponseDto(principalDetails.getUser().getId(), principalDetails.getUsername(), accessToken));
         } catch (BadCredentialsException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new AuthResponseDto(null, null));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new AuthResponseDto(null, null, null));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new AuthResponseDto(null, null));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new AuthResponseDto(null, null, null));
         }
     }
 }
