@@ -51,13 +51,13 @@ public class ArticleController {
         return ResponseEntity.ok(articleResponseDto);
     }
 
-//    @GetMapping("/my")
-//    public ResponseEntity<Page<ArticleResponseDto>> getMyArticles(
-//            @AuthenticationPrincipal PrincipalDetails principalDetails,
-//            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-//        Page<ArticleResponseDto> myArticles = articleService.getMyArticle(principalDetails, pageable);
-//        return ResponseEntity.ok(myArticles);
-//    }
+    @GetMapping("/my")
+    public ResponseEntity<Page<ArticleResponseDto>> getMyArticles(
+            @AuthenticationPrincipal PrincipalDetails principalDetails,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        Page<ArticleResponseDto> myArticles = articleService.getMyArticle(principalDetails, pageable);
+        return ResponseEntity.ok(myArticles);
+    }
 
     @PutMapping("{articleId}")
     public ResponseEntity<ArticleResponseDto> updateArticle(@PathVariable Long articleId, @RequestBody ArticleRequestDto articleRequestDto) {
