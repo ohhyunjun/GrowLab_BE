@@ -1,6 +1,8 @@
 package com.metaverse.growlab_be.species.dto;
 
+import com.metaverse.growlab_be.species.domain.Category;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -14,6 +16,9 @@ public class SpeciesRequestDto {
 
     @Positive(message = "성숙 기간은 양수여야 합니다.")
     private int daysToMature;
+
+    @NotNull(message = "카테고리는 필수입니다.")
+    private Category category;
 
     private String aiPromptGuideline;
 }
