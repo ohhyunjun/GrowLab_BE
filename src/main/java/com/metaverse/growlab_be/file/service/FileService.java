@@ -20,7 +20,8 @@ public class FileService {
     @Value("${file.upload-dir}")
     private String uploadDir;
 
-    public void uploadFile(Article article, MultipartFile multipartFile) {
+    // 파일 업로드 메서드
+    public String uploadFile(Article article, MultipartFile multipartFile) {
         if(multipartFile == null || multipartFile.isEmpty()){
             throw new IllegalArgumentException("업로드할 파일이 비어 있습니다.");
         }
@@ -46,5 +47,7 @@ public class FileService {
 
         File fileEntity = new File(originalFileName, storedFileName, filePath.toString(), article);
         fileRepository.save(fileEntity);
+
+        return "/api/files/" + storedFileName;
     }
 }
