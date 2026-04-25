@@ -13,6 +13,7 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -32,6 +33,12 @@ public class SecurityConfig {
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
         return authenticationConfiguration.getAuthenticationManager();
+    }
+
+    @Bean
+    public WebSecurityCustomizer webSecurityCustomizer() {
+        return (web) -> web.ignoring()
+                .requestMatchers("/uploads/**");
     }
 
     // 스프링시큐리티의 필터체인을 빈으로 등록, 규칙 정의
@@ -59,7 +66,7 @@ public class SecurityConfig {
                 // 인가(Authorization) 부분으로 엔드포인트 접근 권한을 설정하는 부분
                 .authorizeHttpRequests((authorize) -> authorize
                         // 1. 인증 없이 접근 가능한 공개 API
-                        .requestMatchers("/api/auth/**", "/api/sample/**", "/api/plants/**", "/api/files/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/sample/**", "/api/plants/**", "/api/files/**","/uploads/**").permitAll()
 
                         // 2. 게시글 '조회'는 로그인 없이도 가능하게 (필요 시 permitAll로 변경 가능)
                         .requestMatchers(HttpMethod.GET, "/api/articles/**").permitAll()
