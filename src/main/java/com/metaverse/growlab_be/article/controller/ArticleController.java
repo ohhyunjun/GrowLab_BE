@@ -64,8 +64,12 @@ public class ArticleController {
 //    }
 
     @PutMapping("{articleId}")
-    public ResponseEntity<ArticleResponseDto> updateArticle(@PathVariable Long articleId, @RequestBody ArticleRequestDto articleRequestDto) {
-        ArticleResponseDto articleResponseDto = articleService.updateArticle(articleId, articleRequestDto);
+    public ResponseEntity<ArticleResponseDto> updateArticle(
+            @PathVariable Long articleId,
+            @RequestPart("articleData") ArticleRequestDto articleRequestDto,
+            @RequestPart(value = "file", required = false) MultipartFile file,
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+        ArticleResponseDto articleResponseDto = articleService.updateArticle(articleId, articleRequestDto, principalDetails, file);
         return ResponseEntity.ok(articleResponseDto);
     }
 

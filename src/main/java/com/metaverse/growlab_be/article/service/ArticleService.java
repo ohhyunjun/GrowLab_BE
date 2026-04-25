@@ -82,9 +82,23 @@ public class ArticleService {
     }
 
     @Transactional
-    public ArticleResponseDto updateArticle(Long articleId, ArticleRequestDto articleRequestDto) {
+    public ArticleResponseDto updateArticle(Long articleId, ArticleRequestDto articleRequestDto,
+                                            PrincipalDetails principalDetails, MultipartFile file) {
         Article foundArticle = getValidArticleById(articleId);
+        //  작성자 본인 확인 (수정 권한 체크 추가)
+        if (!foundArticle.getUser().getId().equals(principalDetails.user().getId())) {
+            throw new IllegalArgumentException("본인의 게시글만 수정할 수 있습니다.");
+        }
+        // 텍스트 내용 업데이트
         foundArticle.update(articleRequestDto);
+
+        // 이미지 업데이트
+        if (file != null && !file.isEmpty()) {
+            // 새로운 파일이 들어온 경우에만 업로드 후 URL 세팅
+            String uploadedUrl = fileService.uploadFile(foundArticle, file);
+            foundArticle.setImageUrl(uploadedUrl);
+        }
+
         return new ArticleResponseDto(foundArticle);
     }
 

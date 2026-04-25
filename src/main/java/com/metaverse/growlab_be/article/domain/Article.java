@@ -67,7 +67,7 @@ public class Article extends TimeStamped {
     public void update(ArticleRequestDto articleRequestDto) {
         this.title = articleRequestDto.getTitle();
         this.content = articleRequestDto.getContent();
-        this.imageUrl = articleRequestDto.getImageUrl();
+        // this.imageUrl = articleRequestDto.getImageUrl();
         this.category = articleRequestDto.getCategory();
     }
 }
