@@ -37,6 +37,10 @@ public class Species extends TimeStamped {
     @Column(nullable = false)
     private Category category;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Difficulty difficulty;
+
     // Plant와 1:N 관계
     @OneToMany(mappedBy = "species", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Plant> plants = new ArrayList<>();
@@ -46,6 +50,7 @@ public class Species extends TimeStamped {
         this.daysToMature = speciesRequestDto.getDaysToMature();
         this.aiPromptGuideline = speciesRequestDto.getAiPromptGuideline();
         this.category = speciesRequestDto.getCategory();
+        this.difficulty = speciesRequestDto.getDifficulty();
     }
 
     public void update(SpeciesRequestDto speciesRequestDto) {
