@@ -153,6 +153,7 @@ public class ArticleService {
                 oldCookie.setMaxAge(60 * 60 * 24);
                 response.addCookie(oldCookie);
             }
+
         } else {
             // 쿠키가 아예 없을 때 (첫 방문)
             article.setViewCount(article.getViewCount() + 1);
@@ -163,6 +164,8 @@ public class ArticleService {
             response.addCookie(newCookie);
 
         }
+    }
+
     public Page<ArticleResponseDto> getMyArticle(PrincipalDetails principalDetails, Pageable pageable) {
         User user = principalDetails.getUser();
         return articleRepository.findAllByUserOrderByCreatedAtDesc(user, pageable)
