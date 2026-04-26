@@ -1,8 +1,7 @@
 package com.metaverse.growlab_be.auth.controller;
 
-import com.metaverse.growlab_be.auth.dto.AuthResponseDto;
-import com.metaverse.growlab_be.auth.dto.LoginRequestDto;
-import com.metaverse.growlab_be.auth.dto.SignUpRequestDto;
+import com.metaverse.growlab_be.auth.domain.PrincipalDetails;
+import com.metaverse.growlab_be.auth.dto.*;
 import com.metaverse.growlab_be.auth.service.UserService;
 import com.metaverse.growlab_be.auth.util.JwtUtil;
 import jakarta.validation.Valid;
@@ -13,11 +12,9 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("api/auth")
@@ -53,15 +50,46 @@ public class AuthController {
             );
             // 결과물 인증 객체 (UserDetails == Principal)
             // @AuthenticationPrincipal 애너테이션이 내부적으로 (UserDetails) 형변환을 해줌
-            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            PrincipalDetails principalDetails = (PrincipalDetails) authentication.getPrincipal(); // 수정
             // JWT 토큰 생성 (accessToken = jwtToken)
-            String accessToken = jwtUtil.generateToken(userDetails);
+            String accessToken = jwtUtil.generateToken(principalDetails);
 
-            return ResponseEntity.ok(new AuthResponseDto(userDetails.getUsername(), accessToken));
+            return ResponseEntity.ok(new AuthResponseDto(principalDetails.getUser().getId(), principalDetails.getUsername(), accessToken));
         } catch (BadCredentialsException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new AuthResponseDto(null, null));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new AuthResponseDto(null, null, null));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new AuthResponseDto(null, null));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new AuthResponseDto(null, null, null));
         }
+    }
+
+    @PutMapping("/username")
+    public ResponseEntity<String> updateUsername(
+            @AuthenticationPrincipal PrincipalDetails principalDetails,
+            @RequestBody UpdateUsernameRequestDto dto
+    ) {
+        userService.updateUsername(principalDetails.getUser(), dto.getNewUsername());
+        return ResponseEntity.ok("아이디 변경 완료");
+    }
+
+    @PutMapping("/password")
+    public ResponseEntity<String> updatePassword(
+            @AuthenticationPrincipal PrincipalDetails principalDetails,
+            @RequestBody UpdatePasswordRequestDto dto
+    ) {
+        userService.updatePassword(
+                principalDetails.getUser(),
+                dto.getOldPassword(),
+                dto.getNewPassword()
+        );
+        return ResponseEntity.ok("비밀번호 변경 완료");
+    }
+
+    @DeleteMapping("/withdraw")
+    public ResponseEntity<String> deleteUser(
+            @AuthenticationPrincipal PrincipalDetails principalDetails,
+            @RequestParam String password
+    ) {
+        userService.deleteUser(principalDetails.getUser(), password);
+        return ResponseEntity.ok("회원 탈퇴 완료");
     }
 }

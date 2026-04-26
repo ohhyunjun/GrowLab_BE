@@ -107,4 +107,10 @@ public class ArticleService {
 
         return articleResponseDtos;
     }
+
+    public Page<ArticleResponseDto> getMyArticle(PrincipalDetails principalDetails, Pageable pageable) {
+        User user = principalDetails.getUser();
+        return articleRepository.findAllByUserOrderByCreatedAtDesc(user, pageable)
+                .map(ArticleResponseDto::new);
+    }
 }

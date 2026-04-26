@@ -1,5 +1,6 @@
 package com.metaverse.growlab_be.species.dto;
 
+import com.metaverse.growlab_be.species.domain.Category;
 import com.metaverse.growlab_be.species.domain.Species;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -13,11 +14,13 @@ public class SpeciesResponseDto {
     private String name;
     private int daysToMature;
     private String aiPromptGuideline;
+    private Category category;
 
     public SpeciesResponseDto(Species species) {
         this.id = species.getId();
         this.name = species.getName();
         this.daysToMature = species.getDaysToMature();
         this.aiPromptGuideline = species.getAiPromptGuideline();
+        this.category = species.getCategory();
     }
 }

@@ -35,9 +35,9 @@ public class SpeciesController {
     }
 
     // (관리자) 품종 삭제 - DELETE /api/species
-    @DeleteMapping()
+    @DeleteMapping("/{speciesId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteSpecies(@RequestParam Long speciesId) {
+    public ResponseEntity<Void> deleteSpecies(@PathVariable Long speciesId) {
         speciesService.deleteSpecies(speciesId);
         return ResponseEntity.noContent().build();
     }
