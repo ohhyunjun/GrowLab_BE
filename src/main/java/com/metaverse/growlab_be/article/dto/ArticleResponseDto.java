@@ -16,6 +16,9 @@ public class ArticleResponseDto {
     private String title;
     private String content;
     private String authorUsername;
+    private String imageUrl;
+    private String category;
+    private int viewCount;
     private boolean liked;
     private int likesCount;
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
@@ -29,6 +32,9 @@ public class ArticleResponseDto {
         this.id = article.getId();
         this.title = article.getTitle();
         this.content = article.getContent();
+        this.imageUrl = article.getImageUrl();
+        this.category = article.getCategory();
+        this.viewCount = article.getViewCount();
         this.createdAt = article.getCreatedAt();
         this.updatedAt = article.getUpdatedAt();
 
@@ -45,6 +51,9 @@ public class ArticleResponseDto {
         this.id = article.getId();
         this.title = article.getTitle();
         this.content = article.getContent();
+        this.imageUrl = article.getImageUrl();
+        this.category = article.getCategory();
+        this.viewCount = article.getViewCount();
         this.createdAt = article.getCreatedAt();
         this.updatedAt = article.getUpdatedAt();
 
@@ -63,6 +72,9 @@ public class ArticleResponseDto {
         this.content = article.getContent();
         this.createdAt = article.getCreatedAt();
         this.updatedAt = article.getUpdatedAt();
+        this.imageUrl = article.getImageUrl();
+        this.category = article.getCategory();
+        this.viewCount = article.getViewCount();
 
         if (article.getUser() != null) {
             this.authorUsername = article.getUser().getUsername();

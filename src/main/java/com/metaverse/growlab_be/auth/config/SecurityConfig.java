@@ -6,6 +6,7 @@ import com.metaverse.growlab_be.auth.handler.CustomAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -57,11 +58,24 @@ public class SecurityConfig {
                 )
                 // 인가(Authorization) 부분으로 엔드포인트 접근 권한을 설정하는 부분
                 .authorizeHttpRequests((authorize) -> authorize
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/sample/**",
-                                "/api/plants/**"
-                                ).permitAll()
-                        .requestMatchers("/api/devices/*").authenticated()
+                        // 1. 인증 없이 접근 가능한 공개 API
+                        .requestMatchers("/api/auth/**", "/api/sample/**", "/api/plants/**", "/api/files/**").permitAll()
+
+                        // 2. 게시글 '조회'는 로그인 없이도 가능하게 (필요 시 permitAll로 변경 가능)
+                        .requestMatchers(HttpMethod.GET, "/api/articles/**").permitAll()
+
+                        // 3. [중요] 게시글 수정(PUT) 및 삭제(DELETE) 권한 명시
+                        // 특정 게시글(id)에 대한 수정을 위해 경로 패턴을 명확히 합니다.
+                        .requestMatchers(HttpMethod.PUT, "/api/articles/**").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/articles/**").authenticated()
+
+                        // 4. 댓글 및 좋아요 기능 (인증 필수)
+                        .requestMatchers("/api/articles/*/comments/**").authenticated()
+                        .requestMatchers("/api/articles/*/likes").authenticated()
+                        .requestMatchers("/api/comments/**").authenticated()
+
+                        // 5. 기기 관리 및 나머지 요청
+                        .requestMatchers("/api/devices/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 // 커스텀한 JWT 필터를 UsernamePasswordAuthenticationFilter 전에 추가

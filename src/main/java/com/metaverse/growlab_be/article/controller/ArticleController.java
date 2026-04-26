@@ -4,6 +4,8 @@ import com.metaverse.growlab_be.article.dto.ArticleRequestDto;
 import com.metaverse.growlab_be.article.dto.ArticleResponseDto;
 import com.metaverse.growlab_be.article.service.ArticleService;
 import com.metaverse.growlab_be.auth.domain.PrincipalDetails;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -46,8 +48,10 @@ public class ArticleController {
     @GetMapping("{articleId}")
     public ResponseEntity<ArticleResponseDto> getArticleById(
             @PathVariable Long articleId,
-            @AuthenticationPrincipal PrincipalDetails principalDetails) {
-        ArticleResponseDto articleResponseDto = articleService.getArticleById(articleId, principalDetails);
+            @AuthenticationPrincipal PrincipalDetails principalDetails,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        ArticleResponseDto articleResponseDto = articleService.getArticleById(articleId, principalDetails, request, response);
         return ResponseEntity.ok(articleResponseDto);
     }
 
@@ -60,8 +64,12 @@ public class ArticleController {
     }
 
     @PutMapping("{articleId}")
-    public ResponseEntity<ArticleResponseDto> updateArticle(@PathVariable Long articleId, @RequestBody ArticleRequestDto articleRequestDto) {
-        ArticleResponseDto articleResponseDto = articleService.updateArticle(articleId, articleRequestDto);
+    public ResponseEntity<ArticleResponseDto> updateArticle(
+            @PathVariable Long articleId,
+            @RequestPart("articleData") ArticleRequestDto articleRequestDto,
+            @RequestPart(value = "file", required = false) MultipartFile file,
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+        ArticleResponseDto articleResponseDto = articleService.updateArticle(articleId, articleRequestDto, principalDetails, file);
         return ResponseEntity.ok(articleResponseDto);
     }
 
