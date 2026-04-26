@@ -163,5 +163,9 @@ public class ArticleService {
             response.addCookie(newCookie);
 
         }
+    public Page<ArticleResponseDto> getMyArticle(PrincipalDetails principalDetails, Pageable pageable) {
+        User user = principalDetails.getUser();
+        return articleRepository.findAllByUserOrderByCreatedAtDesc(user, pageable)
+                .map(ArticleResponseDto::new);
     }
 }
