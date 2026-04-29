@@ -29,9 +29,10 @@ public class ArticleController {
     @PostMapping()
     public ResponseEntity<ArticleResponseDto> createArticle(
             @RequestPart("articleData") ArticleRequestDto articleRequestDto,
-            @RequestPart(value = "file", required = false) MultipartFile file,
+            @RequestPart(value = "file", required = false) List<MultipartFile> images,
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
-        ArticleResponseDto articleResponseDto = articleService.createArticle(articleRequestDto, principalDetails, file);
+
+        ArticleResponseDto articleResponseDto = articleService.createArticle(articleRequestDto, principalDetails, images);
         return ResponseEntity.status(HttpStatus.CREATED).body(articleResponseDto);
     }
 
@@ -67,9 +68,9 @@ public class ArticleController {
     public ResponseEntity<ArticleResponseDto> updateArticle(
             @PathVariable Long articleId,
             @RequestPart("articleData") ArticleRequestDto articleRequestDto,
-            @RequestPart(value = "file", required = false) MultipartFile file,
+            @RequestPart(value = "file", required = false) List<MultipartFile> images,
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
-        ArticleResponseDto articleResponseDto = articleService.updateArticle(articleId, articleRequestDto, principalDetails, file);
+        ArticleResponseDto articleResponseDto = articleService.updateArticle(articleId, articleRequestDto, principalDetails, images);
         return ResponseEntity.ok(articleResponseDto);
     }
 
