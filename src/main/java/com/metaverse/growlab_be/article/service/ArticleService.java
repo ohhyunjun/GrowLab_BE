@@ -9,6 +9,7 @@ import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.comment.domain.Comment;
 import com.metaverse.growlab_be.comment.dto.CommentResponseDto;
 import com.metaverse.growlab_be.file.service.FileService;
+import com.metaverse.growlab_be.image.domain.Image;
 import com.metaverse.growlab_be.likes.articleLike.domain.ArticleLike;
 import com.metaverse.growlab_be.likes.articleLike.repository.ArticleLikeRepository;
 import jakarta.servlet.http.Cookie;
@@ -32,14 +33,20 @@ public class ArticleService {
     private final FileService fileService;
 
     @Transactional
-    public ArticleResponseDto createArticle(ArticleRequestDto articleRequestDto, PrincipalDetails principalDetails, MultipartFile file) {
+    public ArticleResponseDto createArticle(ArticleRequestDto articleRequestDto, PrincipalDetails principalDetails, List<MultipartFile> images) {
         User logginedUser = principalDetails.user();
         Article newArticle = new Article(articleRequestDto, logginedUser);
         Article savedArticle = articleRepository.save(newArticle);
 
-        if (file != null && !file.isEmpty()) {
-            String uploadedUrl = fileService.uploadFile(savedArticle, file);
-            savedArticle.setImageUrl(uploadedUrl);
+        // 여러 장의 이미지 업로드 처리
+        if (images != null && !images.isEmpty()) {
+            for (MultipartFile imgFile : images) {
+                if (!imgFile.isEmpty()) {
+                    String uploadedUrl = fileService.uploadFile(savedArticle, imgFile);
+                    Image image = new Image(uploadedUrl);
+                    savedArticle.addImage(image);
+                }
+            }
         }
 
         ArticleResponseDto articleResponseDto = new ArticleResponseDto(savedArticle);
@@ -73,6 +80,7 @@ public class ArticleService {
 
         List<Comment> comments = foundArticle.getComments();
         List<CommentResponseDto> commentResponseDtos = new ArrayList<>();
+
         for (Comment comment : comments) {
             commentResponseDtos.add(new CommentResponseDto(comment));
         }
@@ -83,7 +91,7 @@ public class ArticleService {
 
     @Transactional
     public ArticleResponseDto updateArticle(Long articleId, ArticleRequestDto articleRequestDto,
-                                            PrincipalDetails principalDetails, MultipartFile file) {
+                                            PrincipalDetails principalDetails, List<MultipartFile> images) {
         Article foundArticle = getValidArticleById(articleId);
         //  작성자 본인 확인 (수정 권한 체크 추가)
         if (!foundArticle.getUser().getId().equals(principalDetails.user().getId())) {
@@ -92,11 +100,20 @@ public class ArticleService {
         // 텍스트 내용 업데이트
         foundArticle.update(articleRequestDto);
 
+        // 이미지 삭제
+        if (articleRequestDto.getDeleteImageIds() != null && !articleRequestDto.getDeleteImageIds().isEmpty()) {
+            foundArticle.getImages().removeIf(image ->
+                    articleRequestDto.getDeleteImageIds().contains(image.getId())
+            );
+        }
         // 이미지 업데이트
-        if (file != null && !file.isEmpty()) {
-            // 새로운 파일이 들어온 경우에만 업로드 후 URL 세팅
-            String uploadedUrl = fileService.uploadFile(foundArticle, file);
-            foundArticle.setImageUrl(uploadedUrl);
+        if (images != null && !images.isEmpty()) {
+            for (MultipartFile imgFile : images) {
+                if (!imgFile.isEmpty()) {
+                    String uploadedUrl = fileService.uploadFile(foundArticle, imgFile);
+                    foundArticle.addImage(new Image(uploadedUrl));
+                }
+            }
         }
 
         return new ArticleResponseDto(foundArticle);
