@@ -59,13 +59,14 @@ public class SecurityConfig {
                 // 인가(Authorization) 부분으로 엔드포인트 접근 권한을 설정하는 부분
                 .authorizeHttpRequests((authorize) -> authorize
                         // 1. 인증 없이 접근 가능한 공개 API
-                        .requestMatchers("/api/auth/**", "/api/sample/**", "/api/plants/**", "/api/files/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/sample/**", "/api/plants/**", "/api/files/**","/uploads/**").permitAll()
 
                         // 2. 게시글 '조회'는 로그인 없이도 가능하게 (필요 시 permitAll로 변경 가능)
                         .requestMatchers(HttpMethod.GET, "/api/articles/**").permitAll()
 
-                        // 3. [중요] 게시글 수정(PUT) 및 삭제(DELETE) 권한 명시
+                        // 3. 게시글 등록(POST), 수정(PUT), 삭제(DELETE) 권한 명시
                         // 특정 게시글(id)에 대한 수정을 위해 경로 패턴을 명확히 합니다.
+                        .requestMatchers(HttpMethod.POST, "/api/articles/**").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/articles/**").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/articles/**").authenticated()
 
