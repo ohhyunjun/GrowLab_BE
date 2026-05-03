@@ -31,6 +31,9 @@ public class Diary extends TimeStamped {
     @Column(nullable = false)
     private LocalDateTime targetDate; // Diary 작성 기준 날짜
 
+    @Column
+    private String imageUrl;
+
     // Plant과의 N:1 관계
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "plant_id", nullable = false)
@@ -47,6 +50,7 @@ public class Diary extends TimeStamped {
         this.targetDate = diaryRequestDto.getTargetDate();
         this.plant = plant;
         this.user = user;
+        this.imageUrl = null;
     }
 
     public void update(DiaryRequestDto diaryRequestDto) {

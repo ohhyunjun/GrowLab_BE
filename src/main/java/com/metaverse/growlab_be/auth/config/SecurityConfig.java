@@ -77,6 +77,7 @@ public class SecurityConfig {
 
                         // 5. 기기 관리 및 나머지 요청
                         .requestMatchers("/api/devices/**").authenticated()
+                        .requestMatchers("/api/plants/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 // 커스텀한 JWT 필터를 UsernamePasswordAuthenticationFilter 전에 추가
