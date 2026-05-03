@@ -6,11 +6,13 @@ import com.metaverse.growlab_be.diary.domain.Diary;
 import com.metaverse.growlab_be.diary.dto.DiaryRequestDto;
 import com.metaverse.growlab_be.diary.dto.DiaryResponseDto;
 import com.metaverse.growlab_be.diary.repository.DiaryRepository;
+import com.metaverse.growlab_be.file.service.FileService;
 import com.metaverse.growlab_be.plant.domain.Plant;
 import com.metaverse.growlab_be.plant.repository.PlantRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -22,27 +24,23 @@ public class DiaryService {
     private final DiaryRepository diaryRepository;
     private final PlantRepository plantRepository;
     private final UserRepository userRepository;
+    private final FileService fileService;
 
     // Diary 생성
     @Transactional
-    public DiaryResponseDto createDiary(DiaryRequestDto diaryRequestDto, Long plantId, Long userId) {
-        // 식물 존재 여부 확인
+    public DiaryResponseDto createDiary(DiaryRequestDto diaryRequestDto, Long plantId, Long userId, MultipartFile file) {
         Plant foundPlant = getValidPlantById(plantId);
-
-        // 다이어리를 작성하려는 유저 정보 조회
         User foundUser = getValidUserById(userId);
 
-        // TODO: [보안]: 해당 식물이 현재 로그인한 유저의 소유인지 확인, Device 엔티티 추가 후 활성화
-        // validatePlantOwner(foundPlant, foundUser);
-
-        // RequestDto -> Entity 변환
         Diary newDiary = new Diary(diaryRequestDto, foundPlant, foundUser);
         Diary savedDiary = diaryRepository.save(newDiary);
 
-        // Entity -> ResponseDto 변환
-        DiaryResponseDto diaryResponseDto = new DiaryResponseDto(savedDiary);
+        if (file != null && !file.isEmpty()) {
+            String imageUrl = fileService.uploadFile(savedDiary, file);
+            savedDiary.setImageUrl(imageUrl);
+        }
 
-        return diaryResponseDto;
+        return new DiaryResponseDto(savedDiary);
     }
 
     // 전체 Diary 조회 (유저가 작성한 모든 식물의 일기)
@@ -114,26 +112,23 @@ public class DiaryService {
 
     // Diary 수정
     @Transactional
-    public DiaryResponseDto updateDiary(Long id, DiaryRequestDto diaryRequestDto, Long plantId, Long userId) {
-        // 식물 존재 여부 확인
+    public DiaryResponseDto updateDiary(Long id, DiaryRequestDto diaryRequestDto, Long plantId, Long userId, MultipartFile file) {
         Plant foundPlant = getValidPlantById(plantId);
-        // 다이어리를 작성하려는 유저 정보 조회
         User foundUser = getValidUserById(userId);
 
-        // TODO: [보안]: 해당 식물이 현재 로그인한 유저의 소유인지 확인, Device 엔티티 추가 후 활성화
-        // validatePlantOwner(foundPlant, foundUser);
-
-        // [보안]: 해당 Diary가 현재 로그인한 유저가 작성한 것인지 확인
         Diary foundDiary = diaryRepository.findByIdAndUser(id, foundUser)
                 .orElseThrow(() -> new IllegalArgumentException("본인이 작성한 다이어리만 접근 가능합니다."));
 
-        // [추가 보안]: 해당 Diary가 현재 조회하려는 식물에 속한 것인지 확인
         if (!foundDiary.getPlant().getId().equals(plantId)) {
             throw new IllegalArgumentException("해당 식물에 속한 다이어리가 아닙니다.");
         }
 
-        // Diary 엔티티의 update 메서드를 호출하여 수정
         foundDiary.update(diaryRequestDto);
+
+        if (file != null && !file.isEmpty()) {
+            String imageUrl = fileService.uploadFile(foundDiary, file);
+            foundDiary.setImageUrl(imageUrl);
+        }
 
         return new DiaryResponseDto(foundDiary);
     }

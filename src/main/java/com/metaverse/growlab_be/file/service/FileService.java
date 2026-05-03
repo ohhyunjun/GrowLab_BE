@@ -1,6 +1,7 @@
 package com.metaverse.growlab_be.file.service;
 
 import com.metaverse.growlab_be.article.domain.Article;
+import com.metaverse.growlab_be.diary.domain.Diary;
 import com.metaverse.growlab_be.file.domain.File;
 import com.metaverse.growlab_be.file.repository.FileRepository;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +47,35 @@ public class FileService {
         }
 
         File fileEntity = new File(originalFileName, storedFileName, filePath.toString(), article);
+        fileRepository.save(fileEntity);
+
+        return "/api/files/" + storedFileName;
+    }
+
+    public String uploadFile(Diary diary, MultipartFile multipartFile) {
+        if (multipartFile == null || multipartFile.isEmpty()) {
+            throw new IllegalArgumentException("업로드할 파일이 비어 있습니다.");
+        }
+
+        String originalFileName = multipartFile.getOriginalFilename();
+        String storedFileName = java.util.UUID.randomUUID() + "_" + originalFileName;
+        Path uploadPath = Path.of(uploadDir).toAbsolutePath().normalize();
+
+        try {
+            Files.createDirectories(uploadPath);
+        } catch (IOException e) {
+            throw new RuntimeException("파일 저장 디렉토리 생성에 실패했습니다: " + uploadPath, e);
+        }
+
+        Path filePath = uploadPath.resolve(storedFileName);
+
+        try {
+            multipartFile.transferTo(filePath);
+        } catch (IOException e) {
+            throw new RuntimeException("파일 저장 중 오류가 발생했습니다: " + filePath, e);
+        }
+
+        File fileEntity = new File(originalFileName, storedFileName, filePath.toString(), diary);
         fileRepository.save(fileEntity);
 
         return "/api/files/" + storedFileName;
