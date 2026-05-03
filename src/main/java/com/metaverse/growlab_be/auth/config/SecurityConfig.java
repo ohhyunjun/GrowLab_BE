@@ -59,7 +59,7 @@ public class SecurityConfig {
                 // 인가(Authorization) 부분으로 엔드포인트 접근 권한을 설정하는 부분
                 .authorizeHttpRequests((authorize) -> authorize
                         // 1. 인증 없이 접근 가능한 공개 API
-                        .requestMatchers("/api/auth/**", "/api/sample/**", "/api/plants/**", "/api/files/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/sample/**", "/api/files/**").permitAll()
 
                         // 2. 게시글 '조회'는 로그인 없이도 가능하게 (필요 시 permitAll로 변경 가능)
                         .requestMatchers(HttpMethod.GET, "/api/articles/**").permitAll()
@@ -76,6 +76,7 @@ public class SecurityConfig {
 
                         // 5. 기기 관리 및 나머지 요청
                         .requestMatchers("/api/devices/**").authenticated()
+                        .requestMatchers("/api/plants/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 // 커스텀한 JWT 필터를 UsernamePasswordAuthenticationFilter 전에 추가

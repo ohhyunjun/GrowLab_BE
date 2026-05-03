@@ -14,6 +14,7 @@ public class DiaryResponseDto {
     private String title;
     private String content;
     private Long plantId;
+    private String imageUrl;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime targetDate;
@@ -24,5 +25,6 @@ public class DiaryResponseDto {
         this.title = diary.getTitle();
         this.content = diary.getContent();
         this.targetDate = diary.getTargetDate();
+        this.imageUrl = diary.getImageUrl();
     }
 }
