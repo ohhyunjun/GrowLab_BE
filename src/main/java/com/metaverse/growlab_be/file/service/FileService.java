@@ -52,32 +52,28 @@ public class FileService {
         return "/api/files/" + storedFileName;
     }
 
-    public String uploadFile(Diary diary, MultipartFile multipartFile) {
-        if (multipartFile == null || multipartFile.isEmpty()) {
+    public String uploadFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("업로드할 파일이 비어 있습니다.");
         }
 
-        String originalFileName = multipartFile.getOriginalFilename();
-        String storedFileName = java.util.UUID.randomUUID() + "_" + originalFileName;
+        String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
         Path uploadPath = Path.of(uploadDir).toAbsolutePath().normalize();
 
         try {
             Files.createDirectories(uploadPath);
         } catch (IOException e) {
-            throw new RuntimeException("파일 저장 디렉토리 생성에 실패했습니다: " + uploadPath, e);
+            throw new RuntimeException("파일 저장 디렉토리 생성 실패: " + uploadPath, e);
         }
 
-        Path filePath = uploadPath.resolve(storedFileName);
+        Path filePath = uploadPath.resolve(fileName);
 
         try {
-            multipartFile.transferTo(filePath);
+            file.transferTo(filePath);
         } catch (IOException e) {
-            throw new RuntimeException("파일 저장 중 오류가 발생했습니다: " + filePath, e);
+            throw new RuntimeException("파일 업로드 실패: " + filePath, e);
         }
 
-        File fileEntity = new File(originalFileName, storedFileName, filePath.toString(), diary);
-        fileRepository.save(fileEntity);
-
-        return "/api/files/" + storedFileName;
+        return "/uploads/" + fileName;
     }
 }

@@ -26,12 +26,12 @@ public class DiaryController {
     @PostMapping(consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
     public ResponseEntity<DiaryResponseDto> createDiary(
             @RequestPart("diaryData") DiaryRequestDto diaryRequestDto,
-            @RequestPart(value = "file", required = false) MultipartFile file,
+            @RequestPart(value = "files", required = false) List<MultipartFile> files,
             @PathVariable Long plantId,
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
 
         Long userId = principalDetails.user().getId();
-        DiaryResponseDto diaryResponseDto = diaryService.createDiary(diaryRequestDto, plantId, userId, file);
+        DiaryResponseDto diaryResponseDto = diaryService.createDiary(diaryRequestDto, plantId, userId, files);;
         return ResponseEntity.status(HttpStatus.CREATED).body(diaryResponseDto);
     }
 
@@ -65,12 +65,12 @@ public class DiaryController {
     public ResponseEntity<DiaryResponseDto> updateDiary(
             @PathVariable Long id,
             @RequestPart("diaryData") DiaryRequestDto diaryRequestDto,
-            @RequestPart(value = "file", required = false) MultipartFile file,
+            @RequestPart(value = "files", required = false) List<MultipartFile> files,
             @PathVariable Long plantId,
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
 
         Long userId = principalDetails.user().getId();
-        DiaryResponseDto diaryResponseDto = diaryService.updateDiary(id, diaryRequestDto, plantId, userId, file);
+        DiaryResponseDto diaryResponseDto = diaryService.updateDiary(id, diaryRequestDto, plantId, userId, files);
         return ResponseEntity.ok(diaryResponseDto);
     }
 

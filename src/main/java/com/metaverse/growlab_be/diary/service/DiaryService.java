@@ -7,6 +7,7 @@ import com.metaverse.growlab_be.diary.dto.DiaryRequestDto;
 import com.metaverse.growlab_be.diary.dto.DiaryResponseDto;
 import com.metaverse.growlab_be.diary.repository.DiaryRepository;
 import com.metaverse.growlab_be.file.service.FileService;
+import com.metaverse.growlab_be.image.domain.Image;
 import com.metaverse.growlab_be.plant.domain.Plant;
 import com.metaverse.growlab_be.plant.repository.PlantRepository;
 import lombok.RequiredArgsConstructor;
@@ -28,16 +29,20 @@ public class DiaryService {
 
     // Diary 생성
     @Transactional
-    public DiaryResponseDto createDiary(DiaryRequestDto diaryRequestDto, Long plantId, Long userId, MultipartFile file) {
+    public DiaryResponseDto createDiary(DiaryRequestDto diaryRequestDto, Long plantId, Long userId, List<MultipartFile> files) {
+
         Plant foundPlant = getValidPlantById(plantId);
         User foundUser = getValidUserById(userId);
 
         Diary newDiary = new Diary(diaryRequestDto, foundPlant, foundUser);
         Diary savedDiary = diaryRepository.save(newDiary);
 
-        if (file != null && !file.isEmpty()) {
-            String imageUrl = fileService.uploadFile(savedDiary, file);
-            savedDiary.setImageUrl(imageUrl);
+        if (files != null && !files.isEmpty()) {
+            for (MultipartFile file : files) {
+                String imageUrl = fileService.uploadFile(file);
+                Image image = new Image(imageUrl);
+                savedDiary.addImage(image);
+            }
         }
 
         return new DiaryResponseDto(savedDiary);
@@ -112,7 +117,8 @@ public class DiaryService {
 
     // Diary 수정
     @Transactional
-    public DiaryResponseDto updateDiary(Long id, DiaryRequestDto diaryRequestDto, Long plantId, Long userId, MultipartFile file) {
+    public DiaryResponseDto updateDiary(Long id, DiaryRequestDto diaryRequestDto, Long plantId, Long userId, List<MultipartFile> files) {
+
         Plant foundPlant = getValidPlantById(plantId);
         User foundUser = getValidUserById(userId);
 
@@ -125,9 +131,12 @@ public class DiaryService {
 
         foundDiary.update(diaryRequestDto);
 
-        if (file != null && !file.isEmpty()) {
-            String imageUrl = fileService.uploadFile(foundDiary, file);
-            foundDiary.setImageUrl(imageUrl);
+        if (files != null && !files.isEmpty()) {
+            for (MultipartFile file : files) {
+                String imageUrl = fileService.uploadFile(file);
+                Image image = new Image(imageUrl);
+                foundDiary.addImage(image); // ✅ 여기 중요
+            }
         }
 
         return new DiaryResponseDto(foundDiary);
