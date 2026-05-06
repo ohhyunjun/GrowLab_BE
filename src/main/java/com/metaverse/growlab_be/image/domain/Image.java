@@ -2,6 +2,7 @@ package com.metaverse.growlab_be.image.domain;
 
 import com.metaverse.growlab_be.article.domain.Article;
 import com.metaverse.growlab_be.common.domain.TimeStamped;
+import com.metaverse.growlab_be.diary.domain.Diary;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -30,4 +31,8 @@ public class Image extends TimeStamped {
     public Image(String imgUrl) {
         this.imgUrl = imgUrl;
     }
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "diary_id")
+    private Diary diary;
 }
