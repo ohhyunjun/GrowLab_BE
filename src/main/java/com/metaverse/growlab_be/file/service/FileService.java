@@ -1,6 +1,7 @@
 package com.metaverse.growlab_be.file.service;
 
 import com.metaverse.growlab_be.article.domain.Article;
+import com.metaverse.growlab_be.diary.domain.Diary;
 import com.metaverse.growlab_be.file.domain.File;
 import com.metaverse.growlab_be.file.repository.FileRepository;
 import lombok.RequiredArgsConstructor;
@@ -49,5 +50,30 @@ public class FileService {
         fileRepository.save(fileEntity);
 
         return "/api/files/" + storedFileName;
+    }
+
+    public String uploadFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("업로드할 파일이 비어 있습니다.");
+        }
+
+        String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
+        Path uploadPath = Path.of(uploadDir).toAbsolutePath().normalize();
+
+        try {
+            Files.createDirectories(uploadPath);
+        } catch (IOException e) {
+            throw new RuntimeException("파일 저장 디렉토리 생성 실패: " + uploadPath, e);
+        }
+
+        Path filePath = uploadPath.resolve(fileName);
+
+        try {
+            file.transferTo(filePath);
+        } catch (IOException e) {
+            throw new RuntimeException("파일 업로드 실패: " + filePath, e);
+        }
+
+        return "/uploads/" + fileName;
     }
 }
