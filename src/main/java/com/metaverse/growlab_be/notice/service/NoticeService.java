@@ -2,7 +2,9 @@ package com.metaverse.growlab_be.notice.service;
 
 import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.auth.repository.UserRepository;
+import com.metaverse.growlab_be.device.domain.Device;
 import com.metaverse.growlab_be.notice.domain.Notice;
+import com.metaverse.growlab_be.notice.domain.NoticeType;
 import com.metaverse.growlab_be.notice.dto.NoticeResponseDto;
 import com.metaverse.growlab_be.notice.repository.NoticeRepository;
 import lombok.RequiredArgsConstructor;
@@ -104,5 +106,13 @@ public class NoticeService {
         return userRepository.findById(userId).orElseThrow(() ->
                 new IllegalArgumentException("존재하지 않는 사용자입니다. (ID: " + userId + ")"));
 
+    }
+
+    @Transactional
+    public void createAnalysisNotice(Device device, String message, NoticeType type, Integer priority){
+        if (device.getUser() == null) return;;
+        Notice notice = new Notice(
+                device.getId(), message, type, priority, null, device.getUser());
+        noticeRepository.save(notice);
     }
 }
