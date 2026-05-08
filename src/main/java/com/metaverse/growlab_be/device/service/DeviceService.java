@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,7 +24,7 @@ public class DeviceService {
     private final PlantRepository plantRepository;
     private final PhotoRepository photoRepository;
     // 서버에서 라즈베리파이 통신 방법(p, O, o를 보낼 예정)
-    private final MqttPublisher mqttPublisher;
+    private final Optional<MqttPublisher> mqttPublisher;
 
     @Transactional
     public void registerDevice(String serialNumber, String deviceNickname ,User user) {
@@ -102,10 +103,17 @@ public class DeviceService {
     public void updatePhotoInterval(String serialNumber, Integer hours, User user) {
         Device device = findDeviceOwnedByUser(serialNumber, user);
         device.setPhotoInterval(hours);
-
-        mqttPublisher.publishPhotoInterval(device.getId(), hours);
+        mqttPublisher.ifPresent(publisher ->
+                publisher.publishPhotoInterval(device.getId(), hours));
     }
 
+    @Transactional
+    public void controlLed(String serialNumber, boolean on, User user) {
+        Device device = findDeviceOwnedByUser(serialNumber, user);
+        device.setLedStatus(on);
+        mqttPublisher.ifPresent(publisher ->
+                publisher.publishCommand(device.getId(), on ? "O" : "o"));
+    }
     private Device findDeviceOwnedByUser(String serialNumber, User user) {
         Device device = deviceRepository.findById(serialNumber)
                 .orElseThrow(() ->
