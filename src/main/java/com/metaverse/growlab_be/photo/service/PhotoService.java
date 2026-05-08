@@ -1,5 +1,6 @@
 package com.metaverse.growlab_be.photo.service;
 
+
 import com.metaverse.growlab_be.device.domain.Device;
 import com.metaverse.growlab_be.device.repository.DeviceRepository;
 import com.metaverse.growlab_be.notice.domain.NoticeType;
@@ -13,16 +14,10 @@ import com.metaverse.growlab_be.plant.domain.PlantStage;
 import com.metaverse.growlab_be.plant.repository.PlantRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.File;
@@ -30,7 +25,6 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,24 +33,19 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PhotoService {
 
-    private final ObjectMapper objectMapper;
-
-    private final PhotoRepository   photoRepository;
-    private final DeviceRepository  deviceRepository;
-    private final PlantRepository   plantRepository;
-    private final NoticeService noticeService;
-
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final PhotoRepository  photoRepository;
+    private final DeviceRepository deviceRepository;
+    private final PlantRepository  plantRepository;
+    private final NoticeService    noticeService;
 
     @Value("${file.upload-dir.camera}")
     private String uploadDir;
 
-    @Value("${ai.server.detailed.url}")
-    private String aiDetailedServerUrl;
-
+    // ── 사진 저장 + YOLO 결과 저장 ───────────────────────────────
+    // 라즈베리파이가 YOLO 추론 후 사진 + 결과를 같이 전송
     @Transactional
     public PhotoResponseDto savePhoto(PhotoRequestDto requestDto) throws IOException {
-        MultipartFile imageFile   = requestDto.getImageFile();
+        MultipartFile imageFile    = requestDto.getImageFile();
         String        serialNumber = requestDto.getSerialNumber();
 
         if (imageFile == null || imageFile.isEmpty()) {
@@ -67,6 +56,7 @@ public class PhotoService {
                 .orElseThrow(() ->
                         new IllegalArgumentException("등록되지 않은 기기입니다: " + serialNumber));
 
+        // 파일 저장
         File directory = new File(uploadDir);
         if (!directory.exists()) directory.mkdirs();
 
@@ -80,67 +70,57 @@ public class PhotoService {
         Photo photo      = new Photo(device, filePath, fileName);
         Photo savedPhoto = photoRepository.save(photo);
 
-        // AI 상세 분석
-        try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        // 라즈베리파이에서 YOLO 추론 결과를 같이 전송받아 바로 저장
+        String  bestResult    = requestDto.getBestResult()    != null ? requestDto.getBestResult()    : "no_detection";
+        Double  avgConfidence = requestDto.getAvgConfidence() != null ? requestDto.getAvgConfidence() : 0.0;
+        Integer totalDetected = requestDto.getTotalDetected() != null ? requestDto.getTotalDetected() : 0;
+        String  detailedJson  = buildDetailedJson(requestDto.getClassSummary(), requestDto.getDetections());
 
-            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("file", new FileSystemResource(new File(filePath)));
+        savedPhoto.updateDetailedAnalysis(bestResult, avgConfidence, totalDetected, detailedJson);
 
-            String cropType = determineCropType(device);
-            body.add("crop_type", cropType);
-
-            HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(body, headers);
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> detailedResponse = restTemplate.postForObject(
-                    aiDetailedServerUrl, entity, Map.class);
-
-            if (detailedResponse != null) {
-                String  bestResult     = (String) detailedResponse.getOrDefault("bestResult", "no_detection");
-                Integer totalDetected  = Integer.valueOf(detailedResponse.getOrDefault("totalDetected", 0).toString());
-                Double  avgConfidence  = Double.valueOf(detailedResponse.getOrDefault("avgConfidence", 0.0).toString());
-                String  detailedJson   = convertToJson(detailedResponse);
-
-                savedPhoto.updateDetailedAnalysis(bestResult, avgConfidence, totalDetected, detailedJson);
-
-                // 알림 생성 + 식물 상태 업데이트
-                if (device.getUser() != null) {
-                    try {
-                        updatePlantStageAndNotice(device, detailedResponse, cropType);
-                    } catch (Exception e) {
-                        System.err.println("알림 생성 중 오류: " + e.getMessage());
-                    }
-                }
+        // 식물 상태 업데이트 + 알림 생성
+        if (device.getUser() != null) {
+            try {
+                String cropType = determineCropType(device);
+                updatePlantStageAndNotice(device, bestResult, requestDto.getClassSummary(), cropType);
+            } catch (Exception e) {
+                System.err.println("알림 생성 중 오류: " + e.getMessage());
             }
-
-        } catch (Exception e) {
-            System.err.println("AI 분석 서버 호출 실패: " + e.getMessage());
-            savedPhoto.updateDetailedAnalysis("analysis_failed", 0.0, 0, "{}");
         }
 
         return new PhotoResponseDto(savedPhoto);
     }
 
-    // ── 식물 상태 업데이트 + Notice 생성 ────────────────────────
-    @SuppressWarnings("unchecked")
-    private void updatePlantStageAndNotice(Device device,
-                                           Map<String, Object> response,
-                                           String cropType) {
+    // ── 최신 사진 조회 ────────────────────────────────────────────
+    @Transactional(readOnly = true)
+    public PhotoResponseDto findLatestPhoto() {
+        return photoRepository.findTopByOrderByIdDesc()
+                .map(PhotoResponseDto::new)
+                .orElseThrow(() -> new IllegalArgumentException("저장된 사진이 없습니다."));
+    }
+
+    // ── 식물 상태 업데이트 + Notice 생성 ─────────────────────────
+    private void updatePlantStageAndNotice(Device device, String bestResult,
+                                           String classSummaryJson, String cropType) {
         Optional<Plant> plantOpt = plantRepository.findByDeviceId(device.getId());
         if (plantOpt.isEmpty()) return;
 
         Plant      plant        = plantOpt.get();
         PlantStage currentStage = plant.getPlantStage();
 
-        Map<String, Integer> classSummary =
-                (Map<String, Integer>) response.getOrDefault("classSummary", Map.of());
+        // classSummary JSON 파싱
+        Map<String, Integer> classSummary;
+        try {
+            classSummary = new ObjectMapper().readValue(
+                    classSummaryJson != null ? classSummaryJson : "{}",
+                    new TypeReference<Map<String, Integer>>() {}
+            );
+        } catch (Exception e) {
+            classSummary = Map.of();
+        }
 
         if ("lettuce".equalsIgnoreCase(cropType)) {
             // 상추: SEED → GERMINATION → MATURE
-            String analysisStage = (String) response.getOrDefault("analysis_stage", "");
-
             int sproutCount = classSummary.getOrDefault("sprout", 0);
             if (sproutCount > 0 && currentStage == PlantStage.SEED) {
                 plant.setPlantStage(PlantStage.GERMINATION);
@@ -151,15 +131,14 @@ public class PhotoService {
                 noticeService.createAnalysisNotice(device, "새싹이 발아했습니다!", NoticeType.SYSTEM_NOTICE, 2);
             }
 
-            if ("growth".equalsIgnoreCase(analysisStage) && currentStage == PlantStage.GERMINATION) {
+            if ("growth".equalsIgnoreCase(bestResult) && currentStage == PlantStage.GERMINATION) {
                 plant.setPlantStage(PlantStage.MATURE);
                 plant.setMaturedAt(LocalDateTime.now());
                 plantRepository.save(plant);
                 noticeService.createAnalysisNotice(device, "수확 시기가 되었습니다!", NoticeType.SYSTEM_NOTICE, 1);
             }
 
-            // 질병 감지
-            if ("disease".equalsIgnoreCase(analysisStage)) {
+            if ("disease".equalsIgnoreCase(bestResult)) {
                 noticeService.createAnalysisNotice(device, "식물에 이상이 감지되었습니다. 확인해주세요.",
                         NoticeType.SENSOR_ALERT, 1);
             }
@@ -192,7 +171,7 @@ public class PhotoService {
         }
     }
 
-    // ── Notice 생성 헬퍼 ─────────────────────────────────────────
+    // ── 헬퍼 메서드 ───────────────────────────────────────────────
     private String determineCropType(Device device) {
         try {
             return plantRepository.findByDeviceId(device.getId())
@@ -208,68 +187,11 @@ public class PhotoService {
         }
     }
 
-    @Transactional
-    public PhotoResponseDto analyzePhotoDetailed(PhotoRequestDto requestDto) throws IOException {
-        MultipartFile imageFile = requestDto.getImageFile();
-        if (imageFile == null || imageFile.isEmpty()) {
-            throw new IllegalArgumentException("이미지 파일이 필요합니다.");
-        }
-
-        File directory = new File(uploadDir);
-        if (!directory.exists()) directory.mkdirs();
-
-        String extension    = getFileExtension(imageFile.getOriginalFilename());
-        String tempFileName = "temp_" + System.currentTimeMillis() + "." + extension;
-        String tempFilePath = Paths.get(uploadDir, tempFileName).toString();
-        imageFile.transferTo(new File(tempFilePath));
-
+    private String buildDetailedJson(String classSummary, String detections) {
         try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-
-            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("file", new FileSystemResource(new File(tempFilePath)));
-
-            HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(body, headers);
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> detailedResponse = restTemplate.postForObject(
-                    aiDetailedServerUrl, entity, Map.class);
-
-            new File(tempFilePath).delete();
-
-            if (detailedResponse != null) {
-                String  bestResult    = (String) detailedResponse.getOrDefault("bestResult", "no_detection");
-                Double  avgConfidence = Double.valueOf(detailedResponse.getOrDefault("avgConfidence", 0.0).toString());
-                Integer totalDetected = Integer.valueOf(detailedResponse.getOrDefault("totalDetected", 0).toString());
-
-                // DB 저장 없이 임시 Photo 객체로 반환
-                Photo tempPhoto = new Photo(null, "", "temp_analysis");
-                tempPhoto.updateDetailedAnalysis(bestResult, avgConfidence, totalDetected,
-                        convertToJson(detailedResponse));
-                return new PhotoResponseDto(tempPhoto);
-            }
-
-            throw new RuntimeException("AI 서버로부터 응답을 받지 못했습니다.");
-
-        } catch (Exception e) {
-            new File(tempFilePath).delete();
-            throw new RuntimeException("상세 분석 중 오류가 발생했습니다.", e);
-        }
-    }
-
-    @Transactional(readOnly = true)
-    public PhotoResponseDto findLatestPhoto() {
-        return photoRepository.findTopByOrderByIdDesc()
-                .map(PhotoResponseDto::new)
-                .orElseThrow(() -> new IllegalArgumentException("저장된 사진이 없습니다."));
-    }
-
-    private String convertToJson(Map<String, Object> response) {
-        try {
-            return objectMapper.writeValueAsString(Map.of(
-                    "classSummary", response.getOrDefault("classSummary", Map.of()),
-                    "detections",   response.getOrDefault("detections",   List.of())
+            return new ObjectMapper().writeValueAsString(Map.of(
+                    "classSummary", classSummary != null ? classSummary : "{}",
+                    "detections",   detections   != null ? detections   : "[]"
             ));
         } catch (Exception e) {
             return "{}";

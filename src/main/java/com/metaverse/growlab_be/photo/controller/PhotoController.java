@@ -28,17 +28,6 @@ public class PhotoController {
         return ResponseEntity.status(HttpStatus.CREATED).body(responseDto);
     }
 
-    @PostMapping("/photos/analyze-detailed")
-    public ResponseEntity<PhotoResponseDto> analyzePhotoDetailed(
-            @ModelAttribute PhotoRequestDto requestDto) throws IOException {
-
-        // 상세 분석 서비스 호출 (DB 저장 없이 분석 결과만 반환)
-        PhotoResponseDto responseDto = photoService.analyzePhotoDetailed(requestDto);
-
-        // 분석 성공 시, 200 OK 상태 코드와 분석 결과 반환
-        return ResponseEntity.ok(responseDto);
-    }
-
     @GetMapping("/photos/latest")
     public ResponseEntity<PhotoResponseDto> getLatestPhoto() {
         PhotoResponseDto responseDto = photoService.findLatestPhoto();

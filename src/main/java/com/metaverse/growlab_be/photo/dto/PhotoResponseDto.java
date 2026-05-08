@@ -1,10 +1,10 @@
 package com.metaverse.growlab_be.photo.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.metaverse.growlab_be.photo.domain.Photo;
 import lombok.Getter;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -57,7 +57,7 @@ public class PhotoResponseDto {
         try {
             ObjectMapper objectMapper = new ObjectMapper();
             return objectMapper.readValue(detailedResultsJson, DetailedAnalysisData.class);
-        } catch (JsonProcessingException e) {
+        } catch (Exception e) {
             System.err.println("상세 결과 파싱 오류: " + e.getMessage());
             return new DetailedAnalysisData();
         }
