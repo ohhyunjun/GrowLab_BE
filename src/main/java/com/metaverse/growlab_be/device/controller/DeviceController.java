@@ -2,9 +2,7 @@ package com.metaverse.growlab_be.device.controller;
 
 import com.metaverse.growlab_be.auth.domain.PrincipalDetails;
 import com.metaverse.growlab_be.auth.domain.User;
-import com.metaverse.growlab_be.device.dto.DeviceCreateRequestDto;
-import com.metaverse.growlab_be.device.dto.DeviceRegistrationRequestDto;
-import com.metaverse.growlab_be.device.dto.DeviceResponseDto;
+import com.metaverse.growlab_be.device.dto.*;
 import com.metaverse.growlab_be.device.service.DeviceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -68,6 +66,45 @@ public class DeviceController {
             User currentUser = principalDetails.getUser();
             deviceService.deleteDevice(serialNumber, currentUser);
             return ResponseEntity.ok("기기가 성공적으로 삭제되었습니다.");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        }
+    }
+
+    //사진 촬영 주기 설정
+    @PatchMapping("/{serialNumber}/photo_interval")
+    public ResponseEntity<String> updatePhotoInterval(
+            @PathVariable String serialNumber,
+            @Valid @RequestBody PhotoIntervalRequestDto requestDto,
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+        try {
+            deviceService.updatePhotoInterval(
+                    serialNumber,
+                    requestDto.getPhotoInterval(),
+                    principalDetails.getUser());
+            return ResponseEntity.ok(
+                    requestDto.getPhotoInterval() + "시간마다 촬영으로 설정되었습니다.");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        }
+    }
+
+    @PatchMapping("/{serialNumber}/led")
+    public ResponseEntity<String> updateLed(
+            @PathVariable String serialNumber,
+            @RequestBody LedRequestDto requestDto,
+            @AuthenticationPrincipal PrincipalDetails principalDetail) {
+
+        try {
+            deviceService.controlLed(
+                    serialNumber,
+                    requestDto.getLedStatus(),
+                    principalDetail.getUser());
+            return ResponseEntity.ok(requestDto.getLedStatus() ? "led가 켜졌습니다." : "led가 꺼졌습니다.");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (AccessDeniedException e) {

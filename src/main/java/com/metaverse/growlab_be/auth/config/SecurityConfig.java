@@ -61,6 +61,11 @@ public class SecurityConfig {
                         // 1. 인증 없이 접근 가능한 공개 API
                         .requestMatchers("/api/auth/**", "/api/sample/**", "/api/plants/**", "/api/files/**","/uploads/**").permitAll()
 
+                        // 라즈베리파이 -> 서버 전송 (JWT 없이 시리얼 번호로만 인증)
+                        .requestMatchers(HttpMethod.POST, "/api/sensor_logs/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/photos").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/notices/alert").permitAll()
+
                         // 2. 게시글 '조회'는 로그인 없이도 가능하게 (필요 시 permitAll로 변경 가능)
                         .requestMatchers(HttpMethod.GET, "/api/articles/**").permitAll()
 
