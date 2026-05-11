@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @AllArgsConstructor
@@ -26,9 +27,9 @@ public class DeviceResponseDto {
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime updatedAt;
 
-    private PlantSummaryDto plant;
+    private List<PlantSummaryDto> plants;
 
-    public DeviceResponseDto(Device device, LocalDateTime lastPhotoAt, PlantSummaryDto plant) {
+    public DeviceResponseDto(Device device, LocalDateTime lastPhotoAt, List<PlantSummaryDto> plants) {
         this.serialNumber = device.getId();
         this.deviceNickname = device.getDeviceNickname();
         this.status = device.getStatus();
@@ -37,7 +38,7 @@ public class DeviceResponseDto {
         this.lastPhotoAt = lastPhotoAt;
         this.createdAt = device.getCreatedAt();
         this.updatedAt = device.getUpdatedAt();
-        this.plant = plant;
+        this.plants = plants;
     }
 
     // 식물 요약 정보
@@ -46,6 +47,7 @@ public class DeviceResponseDto {
     public static class PlantSummaryDto {
         private Long id;
         private String name;
+        private Integer portIndex;
         private String species;
         private PlantStage plantStage;
     }

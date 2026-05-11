@@ -30,17 +30,15 @@ public class PlantService {
     public PlantResponseDto createPlant(PlantRequestDto plantRequestDto, User user) {
         Device device = findDeviceOwnedByUser(plantRequestDto.getSerialNumber(), user);
 
-        if (plantRepository.existsByDeviceId(device.getId())) {
-            throw new IllegalArgumentException("해당 디바이스에는 이미 식물이 등록되어 있습니다.");
+        // '해당 포트'에 이미 식물이 있는지 확인
+        if (plantRepository.existsByDeviceIdAndPortIndex(device.getId(), plantRequestDto.getPortIndex())) {
+            throw new IllegalArgumentException(plantRequestDto.getPortIndex() + "번 포트에는 이미 식물이 등록되어 있습니다.");
         }
 
         Species species = findSpeciesById(plantRequestDto.getSpeciesId());
 
-        Plant plant = new Plant(
-                plantRequestDto,
-                species,
-                device
-        );
+        Plant plant = new Plant(plantRequestDto, species, device);
+        plantRepository.save(plant);
 
         Plant savedPlant = plantRepository.save(plant);
         return new PlantResponseDto(savedPlant);

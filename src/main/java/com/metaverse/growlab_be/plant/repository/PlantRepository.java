@@ -19,8 +19,8 @@ public interface PlantRepository extends JpaRepository<Plant,Long> {
     @Query("SELECT p FROM Plant p WHERE p.id = :plantId AND p.device.user.id = :userId")
     Optional<Plant> findByIdAndUserId(@Param("plantId") Long plantId, @Param("userId") Long userId);
 
-    // 디바이스 중복 등록 확인
-    boolean existsByDeviceId(String deviceSerial);
+    // 디바이스 중복 등록 확인(포트번호 확인)
+    boolean existsByDeviceIdAndPortIndex(String deviceId, Integer portIndex);
 
     // 디바이스로 식물 조회
     Optional<Plant> findByDeviceId(String deviceSerial);
