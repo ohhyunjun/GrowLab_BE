@@ -2,8 +2,8 @@ package com.metaverse.growlab_be.device.service;
 
 import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.device.domain.Device;
-import com.metaverse.growlab_be.device.dto.DeviceCreateRequestDto;
 import com.metaverse.growlab_be.device.dto.DeviceResponseDto;
+import com.metaverse.growlab_be.device.dto.LedRequestDto;
 import com.metaverse.growlab_be.device.repository.DeviceRepository;
 import com.metaverse.growlab_be.photo.repository.PhotoRepository;
 import com.metaverse.growlab_be.plant.repository.PlantRepository;
@@ -11,7 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import java.time.LocalTime;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -108,12 +108,42 @@ public class DeviceService {
     }
 
     @Transactional
-    public void controlLed(String serialNumber, boolean on, User user) {
+    public void controlLed(String serialNumber, LedRequestDto requestDto, User user) {
         Device device = findDeviceOwnedByUser(serialNumber, user);
-        device.setLedStatus(on);
-        mqttPublisher.ifPresent(publisher ->
-                publisher.publishCommand(device.getId(), on ? "O" : "o"));
+        Boolean mode = requestDto.getLedMode();
+
+        if (mode != null) {
+            device.setLedMode(mode);
+        }
+
+        if (Boolean.FALSE.equals(mode)) {
+            // 수동 모드: ledStatus로 on/off
+            Boolean ledStatus = requestDto.getLedStatus();
+            if (ledStatus != null) {
+                device.setLedStatus(ledStatus);
+                mqttPublisher.ifPresent(publisher ->
+                        publisher.publishCommand(device.getId(), ledStatus ? "O" : "o"));
+            }
+
+        } else if (Boolean.TRUE.equals(mode)) {
+            // 자동 모드: 스케줄 저장 후 RPi에 전송
+            LocalTime onTime  = requestDto.getLedOnTime();
+            LocalTime offTime = requestDto.getLedOffTime();
+
+            if (onTime != null)  device.setLedOnTime(onTime);
+            if (offTime != null) device.setLedOffTime(offTime);
+
+            LocalTime finalOn  = device.getLedOnTime();
+            LocalTime finalOff = device.getLedOffTime();
+
+            if (finalOn != null && finalOff != null) {
+                mqttPublisher.ifPresent(publisher ->
+                        publisher.publishCommand(device.getId(),
+                                "SCHED:" + finalOn + "-" + finalOff));
+            }
+        }
     }
+
     private Device findDeviceOwnedByUser(String serialNumber, User user) {
         Device device = deviceRepository.findById(serialNumber)
                 .orElseThrow(() ->
