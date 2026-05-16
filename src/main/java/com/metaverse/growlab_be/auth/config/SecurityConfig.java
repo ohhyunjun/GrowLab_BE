@@ -58,8 +58,11 @@ public class SecurityConfig {
                 )
                 // 인가(Authorization) 부분으로 엔드포인트 접근 권한을 설정하는 부분
                 .authorizeHttpRequests((authorize) -> authorize
+
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
                         // 1. 인증 없이 접근 가능한 공개 API
-                        .requestMatchers("/api/auth/**", "/api/sample/**", "/api/plants/**", "/api/files/**","/uploads/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/sample/**", "/api/files/**","/uploads/**").permitAll()
 
                         // 라즈베리파이 -> 서버 전송 (JWT 없이 시리얼 번호로만 인증)
                         .requestMatchers(HttpMethod.POST, "/api/sensor_logs/**").permitAll()

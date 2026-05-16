@@ -17,6 +17,7 @@ public class DeviceResponseDto {
     private Boolean status;
     private Boolean ledStatus;
     private Integer photoInterval;
+    private String portStatus;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime lastPhotoAt;
@@ -36,6 +37,7 @@ public class DeviceResponseDto {
         this.ledStatus = device.getLedStatus();
         this.photoInterval = device.getPhotoInterval();
         this.lastPhotoAt = lastPhotoAt;
+        this.portStatus = device.getPortStatus();
         this.createdAt = device.getCreatedAt();
         this.updatedAt = device.getUpdatedAt();
         this.plants = plants;

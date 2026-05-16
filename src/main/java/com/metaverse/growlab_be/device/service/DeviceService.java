@@ -115,6 +115,37 @@ public class DeviceService {
         mqttPublisher.ifPresent(publisher ->
                 publisher.publishCommand(device.getId(), on ? "O" : "o"));
     }
+
+    @Transactional
+    public void updatePortStatus(
+            String serialNumber,
+            Integer portIndex,
+            Boolean status,
+            User user
+    ) {
+        Device device = findDeviceOwnedByUser(serialNumber, user);
+
+        String current = device.getPortStatus();
+
+        if (current == null || current.length() != 8) {
+            current = "00000000";
+        }
+
+        char[] ports = current.toCharArray();
+
+        ports[portIndex] = status ? '1' : '0';
+
+        device.setPortStatus(new String(ports));
+
+        mqttPublisher.ifPresent(publisher ->
+                publisher.publishCommand(
+                        device.getId(),
+                        status
+                                ? "P" + portIndex
+                                : "p" + portIndex
+                ));
+    }
+
     private Device findDeviceOwnedByUser(String serialNumber, User user) {
         Device device = deviceRepository.findById(serialNumber)
                 .orElseThrow(() ->

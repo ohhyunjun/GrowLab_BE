@@ -38,7 +38,6 @@ public class PlantService {
         Species species = findSpeciesById(plantRequestDto.getSpeciesId());
 
         Plant plant = new Plant(plantRequestDto, species, device);
-        plantRepository.save(plant);
 
         Plant savedPlant = plantRepository.save(plant);
         return new PlantResponseDto(savedPlant);

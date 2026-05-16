@@ -34,6 +34,9 @@ public class Device extends TimeStamped {
     @Column(name = "photo_interval")
     private Integer photoInterval = 12;
 
+    @Column(name = "port_status")
+    private String portStatus = "00000000";
+
     // User와의 N:1 관계 설정
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
@@ -49,5 +52,6 @@ public class Device extends TimeStamped {
         this.status = false;
         this.ledStatus = false;
         this.photoInterval = 12;
+        this.portStatus = "00000000";
     }
 }
