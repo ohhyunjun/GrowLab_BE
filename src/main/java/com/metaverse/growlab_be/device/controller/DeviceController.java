@@ -111,4 +111,28 @@ public class DeviceController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
         }
     }
+
+    @PatchMapping("/{serialNumber}/ports")
+    public ResponseEntity<String> updatePortStatus(
+            @PathVariable String serialNumber,
+            @RequestBody PortStatusRequestDto requestDto,
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+
+        try {
+            deviceService.updatePortStatus(
+                    serialNumber,
+                    requestDto.getPortIndex(),
+                    requestDto.getStatus(),
+                    principalDetails.getUser());
+
+            return ResponseEntity.ok(
+                    requestDto.getPortIndex() + "번 포트 상태 변경 완료");
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        }
+    }
 }
