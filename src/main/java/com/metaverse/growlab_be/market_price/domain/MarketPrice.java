@@ -1,9 +1,9 @@
 package com.metaverse.growlab_be.market_price.domain;
 
 import jakarta.persistence.*;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 import java.time.LocalDate;
 
@@ -51,4 +51,12 @@ public class MarketPrice {
     @Column(name = "price_date", nullable = false)
     private LocalDate priceDate;
 
+    @Builder
+    public MarketPrice(String itemName, Integer wholesalePrice, Integer retailPrice, String priceUnit, LocalDate priceDate) {
+        this.itemName = itemName;
+        this.wholesalePrice = wholesalePrice;
+        this.retailPrice = retailPrice;
+        this.priceUnit = priceUnit;
+        this.priceDate = priceDate;
+    }
 }
