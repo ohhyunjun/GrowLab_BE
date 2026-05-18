@@ -3,8 +3,10 @@ package com.metaverse.growlab_be.notice.service;
 import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.auth.repository.UserRepository;
 import com.metaverse.growlab_be.device.domain.Device;
+import com.metaverse.growlab_be.device.repository.DeviceRepository;
 import com.metaverse.growlab_be.notice.domain.Notice;
 import com.metaverse.growlab_be.notice.domain.NoticeType;
+import com.metaverse.growlab_be.notice.dto.NoticeRequestDto;
 import com.metaverse.growlab_be.notice.dto.NoticeResponseDto;
 import com.metaverse.growlab_be.notice.repository.NoticeRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +21,7 @@ public class NoticeService {
 
     private final NoticeRepository noticeRepository;
     private final UserRepository userRepository;
+    private final DeviceRepository deviceRepository;
 
     // 모든 알림 조회
     @Transactional(readOnly = true)
@@ -113,6 +116,31 @@ public class NoticeService {
         if (device.getUser() == null) return;;
         Notice notice = new Notice(
                 device.getId(), message, type, priority, null, device.getUser());
+        noticeRepository.save(notice);
+    }
+
+    @Transactional
+    public void createAlertFromRpi(NoticeRequestDto dto) {
+        // 시리얼 번호로 기기 찾기
+        Device device = deviceRepository.findById(dto.getSerial_number())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 시리얼 번호입니다."));
+
+        // 기기에 유저가 없으면 무시
+        if (device.getUser() == null) return;
+
+        String message = String.format("[%s] 이상값 감지: %.2f", dto.getSensor(), dto.getValue());
+        String additionalData = String.format(
+                "{\"sensor\":\"%s\",\"value\":%.2f}", dto.getSensor(), dto.getValue()
+        );
+
+        Notice notice = new Notice(
+                dto.getSerial_number(),
+                message,
+                NoticeType.SENSOR_ALERT,
+                1,  // 우선순위 높음
+                additionalData,
+                device.getUser()
+        );
         noticeRepository.save(notice);
     }
 }
