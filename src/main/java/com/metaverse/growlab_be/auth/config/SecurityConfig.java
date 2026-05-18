@@ -66,23 +66,29 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/photos").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/notices/alert").permitAll()
 
-                        // 2. 게시글 '조회'는 로그인 없이도 가능하게 (필요 시 permitAll로 변경 가능)
+                        // 실시간 센서값 수신 + SSE 구독
+                        .requestMatchers(HttpMethod.POST, "/api/sensor_logs/realtime").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/notices/alert").permitAll()
+                        .requestMatchers(HttpMethod.GET,  "/api/sensor_logs/stream/**").permitAll()
+
+                        // 2. 게시글 '조회'는 로그인 없이도 가능
                         .requestMatchers(HttpMethod.GET, "/api/articles/**").permitAll()
 
-                        // 3. 게시글 등록(POST), 수정(PUT), 삭제(DELETE) 권한 명시
-                        // 특정 게시글(id)에 대한 수정을 위해 경로 패턴을 명확히 합니다.
+                        // 3. 게시글 등록, 수정, 삭제
                         .requestMatchers(HttpMethod.POST, "/api/articles/**").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/articles/**").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/articles/**").authenticated()
 
-                        // 4. 댓글 및 좋아요 기능 (인증 필수)
+                        // 4. 댓글 및 좋아요
                         .requestMatchers("/api/articles/*/comments/**").authenticated()
                         .requestMatchers("/api/articles/*/likes").authenticated()
                         .requestMatchers("/api/comments/**").authenticated()
 
-                        // 5. 기기 관리 및 나머지 요청
+                        // 5. 기기 관리 및 나머지
                         .requestMatchers("/api/devices/**").authenticated()
                         .requestMatchers("/api/plants/**").authenticated()
+
+                        // anyRequest()는 항상 마지막 한 번만
                         .anyRequest().authenticated()
                 )
                 // 커스텀한 JWT 필터를 UsernamePasswordAuthenticationFilter 전에 추가

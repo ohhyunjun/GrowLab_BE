@@ -1,8 +1,6 @@
 package com.metaverse.growlab_be.sensor_log.service;
 
-import com.metaverse.growlab_be.auth.domain.PrincipalDetails;
 import com.metaverse.growlab_be.device.domain.Device;
-import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.device.repository.DeviceRepository;
 import com.metaverse.growlab_be.sensor_log.domain.SensorLog;
 import com.metaverse.growlab_be.sensor_log.dto.SensorLogRequestDto;
@@ -11,14 +9,22 @@ import com.metaverse.growlab_be.sensor_log.repository.SensorLogRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.nio.file.AccessDeniedException;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
 public class SensorLogService {
     private final SensorLogRepository sensorLogRepository;
     private final DeviceRepository deviceRepository;
+
+    // SSE emitter 저장소: serialNumber → SseEmitter
+    private final Map<String, SseEmitter> emitterMap = new ConcurrentHashMap<>();
+    private final Map<String, SensorLogRequestDto> latestDataMap = new ConcurrentHashMap<>();
 
     @Transactional
     public SensorLogResponseDto createSensorLog (SensorLogRequestDto sensorLogRequestDto) {
@@ -39,18 +45,58 @@ public class SensorLogService {
 
     }
 
-    @Transactional
-    public SensorLogResponseDto getLatestSensorLog (String serialNumber, PrincipalDetails  principalDetails) {
-        Device device = getValidDeviceById(serialNumber);
+    // 추가: RPi 실시간 수신 → SSE로 프론트 push (DB 저장 X)
+    public void pushRealtime(SensorLogRequestDto dto) {
+        SseEmitter emitter = emitterMap.get(dto.getSerial_number());
+        if (emitter == null) return;
 
-        if (device.getUser() == null || !device.getUser().getId().equals(principalDetails.user().getId())){
-            throw new IllegalArgumentException("해당 기기에 대한 접근 권한이 없습니다.");
+        try {
+            // Map.of() → HashMap으로 변경 (null 허용)
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("serial_number",      dto.getSerial_number());
+            payload.put("temperature",        dto.getTemperature());
+            payload.put("humidity",           dto.getHumidity());
+            payload.put("ph",                 dto.getPh());
+            payload.put("tds",                dto.getTds());
+            payload.put("water_level_status", dto.getWater_level_status());
+
+            emitter.send(SseEmitter.event()
+                    .name("sensor")
+                    .data(payload));
+        } catch (IOException e) {
+            emitterMap.remove(dto.getSerial_number());
+        }
+    }
+
+    // 추가: 프론트 SSE 연결 수립 (timeout 5분, 프론트에서 자동 재연결)
+    public SseEmitter createEmitter(String serialNumber) {
+        SseEmitter emitter = new SseEmitter(5 * 60 * 1000L);
+
+        emitterMap.put(serialNumber, emitter);
+
+        emitter.onCompletion(() -> emitterMap.remove(serialNumber));
+        emitter.onTimeout(()    -> emitterMap.remove(serialNumber));
+        emitter.onError((e)     -> emitterMap.remove(serialNumber));
+
+        SensorLogRequestDto latest = latestDataMap.get(serialNumber);
+        try {
+            if (latest != null) {
+                emitter.send(SseEmitter.event().name("sensor").data(Map.of(
+                        "serial_number",      latest.getSerial_number(),
+                        "temperature",        latest.getTemperature(),
+                        "humidity",           latest.getHumidity(),
+                        "ph",                 latest.getPh(),
+                        "tds",               latest.getTds(),
+                        "water_level_status", latest.getWater_level_status()
+                )));
+            } else {
+                emitter.send(SseEmitter.event().name("connect").data("connected"));
+            }
+        } catch (IOException e) {
+            emitterMap.remove(serialNumber);
         }
 
-        SensorLog latestLog = sensorLogRepository.findTopBySerialNumberOrderByCreatedAtDesc(device)
-                .orElseThrow(()-> new IllegalArgumentException("측정된 센서 데이터가 없습니다."));
-
-        return new SensorLogResponseDto(latestLog);
+        return emitter;
     }
 
     public Device getValidDeviceById(String serialNumber){
