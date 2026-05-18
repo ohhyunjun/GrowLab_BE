@@ -56,16 +56,17 @@ public class DeviceService {
                     .map(photo -> photo.getCreatedAt())
                     .orElse(null);
 
-            DeviceResponseDto.PlantSummaryDto plantSummary = plantRepository.findByDeviceId(device.getId())
+            List<DeviceResponseDto.PlantSummaryDto> plantSummaries = device.getPlants().stream()
                     .map(plant -> new DeviceResponseDto.PlantSummaryDto(
                             plant.getId(),
                             plant.getName(),
+                            plant.getPortIndex(),
                             plant.getSpecies().getName(),
                             plant.getPlantStage()
                     ))
-                    .orElse(null);
+                    .toList();
 
-            return new DeviceResponseDto(device, lastPhotoAt, plantSummary);
+            return new DeviceResponseDto(device, lastPhotoAt, plantSummaries);
         }).collect(Collectors.toList());
     }
 
@@ -142,6 +143,36 @@ public class DeviceService {
                                 "SCHED:" + finalOn + "-" + finalOff));
             }
         }
+    }
+
+    @Transactional
+    public void updatePortStatus(
+            String serialNumber,
+            Integer portIndex,
+            Boolean status,
+            User user
+    ) {
+        Device device = findDeviceOwnedByUser(serialNumber, user);
+
+        String current = device.getPortStatus();
+
+        if (current == null || current.length() != 8) {
+            current = "00000000";
+        }
+
+        char[] ports = current.toCharArray();
+
+        ports[portIndex] = status ? '1' : '0';
+
+        device.setPortStatus(new String(ports));
+
+        mqttPublisher.ifPresent(publisher ->
+                publisher.publishCommand(
+                        device.getId(),
+                        status
+                                ? "P" + portIndex
+                                : "p" + portIndex
+                ));
     }
 
     private Device findDeviceOwnedByUser(String serialNumber, User user) {

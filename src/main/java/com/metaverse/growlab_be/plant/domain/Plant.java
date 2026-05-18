@@ -18,7 +18,12 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "plant")
+@Table(name = "plant", uniqueConstraints = {
+        @UniqueConstraint(
+                name = "uk_device_port", // 제약 조건 이름
+                columnNames = {"device_serial", "port_index"}
+        )
+})
 public class Plant extends TimeStamped {
 
     @Id
@@ -41,13 +46,16 @@ public class Plant extends TimeStamped {
     @Column(nullable = false)
     private PlantStage plantStage; // 성장 단계
 
+    @Column(nullable = false, name = "port_index")
+    private Integer portIndex; // 포트 번호(0~7)
+
     // Diary와의 1:N 관계
     @OneToMany(mappedBy = "plant", cascade = CascadeType.ALL, orphanRemoval = true)
     List<Diary> diaries = new ArrayList<>();
 
-    // Device와의 1:1 관계 설정
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "device_serial", unique = true, nullable = false)
+    // Device와의 N:1 관계 설정
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "device_serial", nullable = false)
     private Device device;
 
     // Species와의 N:1 관계
@@ -61,6 +69,7 @@ public class Plant extends TimeStamped {
         this.germinatedAt = plantRequestDto.getGerminatedAt();
         this.maturedAt = plantRequestDto.getMaturedAt();
         this.plantStage = plantRequestDto.getPlantStage();
+        this.portIndex = plantRequestDto.getPortIndex();
         this.species = species;
         this.device = device;
 

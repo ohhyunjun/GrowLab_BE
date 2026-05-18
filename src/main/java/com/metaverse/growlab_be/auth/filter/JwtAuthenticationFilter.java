@@ -33,6 +33,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         final String jwtToken;
         final String username;
 
+        System.out.println("===== JWT FILTER =====");
+        System.out.println("URI = " + request.getRequestURI());
+        System.out.println("METHOD = " + request.getMethod());
+        System.out.println("AUTH HEADER = " + authHeader);
+
         // 2. Authorization 헤더가 없거나, "Bearer "로 시작되지 않는 경우,
         // JWT가 없는 요청으로 간주(인증되지 않은 상태) 다음 필터로 스킵
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -53,9 +58,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         
         // 4. JWT 토큰에서 사용자 계정(Username)이 존재하며, SpringSecurityContext공간에 인증 정보가 존재하지 않는 경우에만 인증 진행
-        if (username != null || SecurityContextHolder.getContext().getAuthentication() == null) {
+        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             // 5. UserDetailsService통해 사용자계정(Username)을 기반으로 UserDetails 객체 로드
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+            System.out.println("USERNAME = " + username);
+            System.out.println("TOKEN VALID = " + jwtUtil.validateToken(jwtToken, userDetails));
+
             // 6. 토큰 유효성 검사(사용자 이름 일치, 토큰 만료 여부)
             if (jwtUtil.validateToken(jwtToken, userDetails)) {
                 // 7. 토큰이 유효한 경우, Spring SecurityContext에 인증 정보 설정
@@ -72,8 +81,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authToken);
                 // -> 현재 요청에 대해 인증된 사용자임을 Spring Security에 알림
             }
-            // 10. 필터 체인 계속 진행
-            filterChain.doFilter(request, response);
         }
+        // 10. 필터 체인 계속 진행
+        filterChain.doFilter(request, response);
     }
 }

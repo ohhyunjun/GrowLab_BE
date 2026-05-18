@@ -41,6 +41,8 @@ public class PlantResponseDto {
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime updatedAt;
 
+    private Integer portIndex;
+
     // 다이어리만 포함
     private List<DiaryResponseDto> diaries;
 
@@ -57,6 +59,8 @@ public class PlantResponseDto {
 
         this.deviceSerial = plant.getDevice().getId();
         this.deviceNickname = plant.getDevice().getDeviceNickname();
+
+        this.portIndex = plant.getPortIndex();
 
         this.diaries = plant.getDiaries()
                 .stream()

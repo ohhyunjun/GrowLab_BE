@@ -8,6 +8,7 @@ import lombok.Getter;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 
 @Getter
 @AllArgsConstructor
@@ -18,6 +19,7 @@ public class DeviceResponseDto {
     private Boolean ledStatus;
     private Integer photoInterval;
     private Boolean ledMode;
+    private String portStatus;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime lastPhotoAt;
@@ -34,21 +36,22 @@ public class DeviceResponseDto {
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm")
     private LocalTime ledOffTime;
 
-    private PlantSummaryDto plant;
+    private List<PlantSummaryDto> plants;
 
-    public DeviceResponseDto(Device device, LocalDateTime lastPhotoAt, PlantSummaryDto plant) {
+    public DeviceResponseDto(Device device, LocalDateTime lastPhotoAt, List<PlantSummaryDto> plants) {
         this.serialNumber = device.getId();
         this.deviceNickname = device.getDeviceNickname();
         this.status = device.getStatus();
         this.ledStatus = device.getLedStatus();
         this.photoInterval = device.getPhotoInterval();
         this.lastPhotoAt = lastPhotoAt;
+        this.portStatus = device.getPortStatus();
         this.createdAt = device.getCreatedAt();
         this.updatedAt = device.getUpdatedAt();
         this.ledMode = device.getLedMode();
         this.ledOnTime = device.getLedOnTime();
         this.ledOffTime = device.getLedOffTime();
-        this.plant = plant;
+        this.plants = plants;
     }
 
     // 식물 요약 정보
@@ -57,6 +60,7 @@ public class DeviceResponseDto {
     public static class PlantSummaryDto {
         private Long id;
         private String name;
+        private Integer portIndex;
         private String species;
         private PlantStage plantStage;
     }
