@@ -47,6 +47,7 @@ public class SensorLogService {
 
     // 추가: RPi 실시간 수신 → SSE로 프론트 push (DB 저장 X)
     public void pushRealtime(SensorLogRequestDto dto) {
+        latestDataMap.put(dto.getSerial_number(), dto);
         SseEmitter emitter = emitterMap.get(dto.getSerial_number());
         if (emitter == null) return;
 

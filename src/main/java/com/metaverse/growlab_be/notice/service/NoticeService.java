@@ -13,7 +13,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -89,6 +91,56 @@ public class NoticeService {
         noticeRepository.delete(notice);
     }
 
+    @Transactional
+    public void createAnalysisNotice(Device device, String message, NoticeType type, Integer priority){
+        if (device.getUser() == null) return;;
+        Notice notice = new Notice(
+                device.getId(), message, type, priority, null, device.getUser());
+        noticeRepository.save(notice);
+    }
+
+    @Transactional
+    public void createAlertFromRpi(NoticeRequestDto dto) {
+        // 시리얼 번호로 기기 찾기
+        Device device = deviceRepository.findById(dto.getSerial_number())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 시리얼 번호입니다."));
+
+        // 기기에 유저가 없으면 무시
+        if (device.getUser() == null) return;
+
+        String sensor = dto.getSensor().trim().toUpperCase();
+
+        // 미읽음 동일 센서 notice는 생성 안함
+        boolean unreadExists = noticeRepository
+                .existsByUserAndDeviceSerialAndAdditionalDataContainingAndIsReadFalse(
+                        device.getUser(), dto.getSerial_number(), sensor);
+        if (unreadExists) return;
+
+        // 쿨다운 체크
+        int cooldownHours = COOLDOWN_HOURS.getOrDefault(sensor, 12);
+        LocalDateTime cooldownTime = LocalDateTime.now().minusHours(cooldownHours);
+        boolean recentExists = noticeRepository
+                .existsByUserAndDeviceSerialAndAdditionalDataContainingAndCreatedAtAfter(
+                        device.getUser(), dto.getSerial_number(), sensor, cooldownTime);
+        if (recentExists) return;
+
+        // 생성
+        String message = String.format("[%s] 이상값 감지: %.2f", dto.getSensor(), dto.getValue());
+        String additionalData = String.format(
+                "{\"sensor\":\"%s\",\"value\":%.2f}", dto.getSensor(), dto.getValue()
+        );
+
+        Notice notice = new Notice(
+                dto.getSerial_number(),
+                message,
+                NoticeType.SENSOR_ALERT,
+                1,  // 우선순위 높음
+                additionalData,
+                device.getUser()
+        );
+        noticeRepository.save(notice);
+    }
+
     // [공통 검증 메서드]
 
     //  본인 확인 검증
@@ -111,36 +163,13 @@ public class NoticeService {
 
     }
 
-    @Transactional
-    public void createAnalysisNotice(Device device, String message, NoticeType type, Integer priority){
-        if (device.getUser() == null) return;;
-        Notice notice = new Notice(
-                device.getId(), message, type, priority, null, device.getUser());
-        noticeRepository.save(notice);
-    }
+    // 센서별 쿨다운 시간
+    private static final Map<String, Integer> COOLDOWN_HOURS = Map.of(
+            "TDS", 12,
+            "PH", 12,
+            "TEMP", 4,
+            "HUM", 4
+    );
 
-    @Transactional
-    public void createAlertFromRpi(NoticeRequestDto dto) {
-        // 시리얼 번호로 기기 찾기
-        Device device = deviceRepository.findById(dto.getSerial_number())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 시리얼 번호입니다."));
 
-        // 기기에 유저가 없으면 무시
-        if (device.getUser() == null) return;
-
-        String message = String.format("[%s] 이상값 감지: %.2f", dto.getSensor(), dto.getValue());
-        String additionalData = String.format(
-                "{\"sensor\":\"%s\",\"value\":%.2f}", dto.getSensor(), dto.getValue()
-        );
-
-        Notice notice = new Notice(
-                dto.getSerial_number(),
-                message,
-                NoticeType.SENSOR_ALERT,
-                1,  // 우선순위 높음
-                additionalData,
-                device.getUser()
-        );
-        noticeRepository.save(notice);
-    }
 }
