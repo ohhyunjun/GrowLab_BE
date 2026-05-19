@@ -10,10 +10,8 @@ import java.util.List;
 @Getter
 @Setter
 @JsonIgnoreProperties(ignoreUnknown = true)
+public class KamisDataDto {
 
-public class KamisResponseDto {
-
-    @JsonProperty("data")
-    private KamisDataDto data;
-
+    @JsonProperty("item")
+    private List<KamisItemDto> item;
 }
