@@ -50,6 +50,11 @@ public class MarketPrice {
     @Column(name = "price_date", nullable = false)
     private LocalDate priceDate;
 
+    // CropCode과의 연관 관계 설정(단방향)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "crop_code_id")
+    private CropCode cropCode;
+
     @Builder
     public MarketPrice(
             String itemName,
@@ -57,7 +62,8 @@ public class MarketPrice {
             String unit,
             String marketName,
             String countyName,
-            LocalDate priceDate
+            LocalDate priceDate,
+            CropCode cropCode
     ) {
         this.itemName = itemName;
         this.price = price;
@@ -65,5 +71,6 @@ public class MarketPrice {
         this.marketName = marketName;
         this.countyName = countyName;
         this.priceDate = priceDate;
+        this.cropCode = cropCode;
     }
 }
