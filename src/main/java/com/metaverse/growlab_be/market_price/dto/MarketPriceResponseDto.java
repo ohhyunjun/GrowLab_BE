@@ -9,16 +9,19 @@ import java.time.LocalDate;
 public class MarketPriceResponseDto {
 
     private final String itemName;
-    private final Integer wholesalePrice;
-    private final Integer retailPrice;
-    private final String priceUnit;
+    private final Integer price;
+    private final String unit;
+    private final String marketName;
+    private final String countyName;
     private final LocalDate priceDate;
+
 
     public MarketPriceResponseDto(MarketPrice marketPrice) {
         this.itemName = marketPrice.getItemName();
-        this.wholesalePrice = marketPrice.getWholesalePrice();
-        this.retailPrice = marketPrice.getRetailPrice();
-        this.priceUnit = marketPrice.getPriceUnit();
+        this.price = marketPrice.getPrice();
+        this.unit = marketPrice.getUnit();
+        this.marketName = marketPrice.getMarketName();
+        this.countyName = marketPrice.getCountyName();
         this.priceDate = marketPrice.getPriceDate();
     }
 }
