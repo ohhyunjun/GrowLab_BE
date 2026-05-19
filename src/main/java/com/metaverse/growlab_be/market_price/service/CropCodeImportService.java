@@ -46,6 +46,19 @@ public class CropCodeImportService {
                 String kindName = row.getCell(6).toString().trim();
                 String unit = row.getCell(13).toString().trim();
 
+                // 중복 저장 방지
+                boolean exists = cropCodeRepository
+                        .existsByItemCodeAndKindCode(itemCode, kindCode);
+
+                if (exists) {
+                    log.info(
+                            "이미 저장된 데이터 스킵 - itemCode={}, kindCode={}",
+                            itemCode,
+                            kindCode
+                    );
+                    continue;
+                }
+
                 CropCode cropCode = CropCode.builder()
                         .itemName(itemName)
                         .itemCode(itemCode)
