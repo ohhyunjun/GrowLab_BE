@@ -1,9 +1,8 @@
 package com.metaverse.growlab_be.market_price.controller;
 
-import com.metaverse.growlab_be.market_price.domain.CropCode;
 import com.metaverse.growlab_be.market_price.dto.CropCodeResponseDto;
-import com.metaverse.growlab_be.market_price.repository.CropCodeRepository;
 import com.metaverse.growlab_be.market_price.service.CropCodeImportService;
+import com.metaverse.growlab_be.market_price.service.CropCodeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,7 +18,7 @@ import java.util.List;
 public class CropCodeController {
 
     private final CropCodeImportService cropCodeImportService;
-    private final CropCodeRepository cropCodeRepository;
+    private final CropCodeService cropCodeService;
 
     // 엑셀 파일에서 작물 코드 데이터를 읽어와 DB에 저장하는 API
     // http://localhost:8080/api/crops/import
@@ -38,14 +37,8 @@ public class CropCodeController {
             @RequestParam String name
     ) {
 
-        List<CropCode> cropCodes =
-                cropCodeRepository.findByKindNameContaining(name);
-
-
-        List<CropCodeResponseDto> response = cropCodes.stream()
-                .map(CropCodeResponseDto::new)
-                .toList();
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(
+                cropCodeService.searchCrop(name)
+        );
     }
 }
