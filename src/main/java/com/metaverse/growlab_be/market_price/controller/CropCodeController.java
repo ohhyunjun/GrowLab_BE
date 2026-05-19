@@ -1,6 +1,7 @@
 package com.metaverse.growlab_be.market_price.controller;
 
 import com.metaverse.growlab_be.market_price.domain.CropCode;
+import com.metaverse.growlab_be.market_price.dto.CropCodeResponseDto;
 import com.metaverse.growlab_be.market_price.repository.CropCodeRepository;
 import com.metaverse.growlab_be.market_price.service.CropCodeImportService;
 import lombok.RequiredArgsConstructor;
@@ -33,24 +34,18 @@ public class CropCodeController {
     // 작물 이름으로 품목코드, 품종코드, 단위를 조회하는 API
     // http://localhost:8080/api/crops/search?name=방울토마토
     @GetMapping("/search")
-    public ResponseEntity<String> searchCrop(
+    public ResponseEntity<List<CropCodeResponseDto>> searchCrop(
             @RequestParam String name
     ) {
 
         List<CropCode> cropCodes =
                 cropCodeRepository.findByKindNameContaining(name);
 
-        StringBuilder result = new StringBuilder();
 
-        for (CropCode cropCode : cropCodes) {
+        List<CropCodeResponseDto> response = cropCodes.stream()
+                .map(CropCodeResponseDto::new)
+                .toList();
 
-            result.append(
-                            "품목코드=").append(cropCode.getItemCode())
-                    .append(", 품종코드=").append(cropCode.getKindCode())
-                    .append(", 단위=").append(cropCode.getUnit())
-                    .append("\n");
-        }
-
-        return ResponseEntity.ok(result.toString());
+        return ResponseEntity.ok(response);
     }
 }
