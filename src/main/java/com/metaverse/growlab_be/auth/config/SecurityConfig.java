@@ -65,7 +65,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**", "/api/sample/**", "/api/files/**","/uploads/**").permitAll()
 
                         // 농산물 코드 조회 허용 추가 (인증 없이 통과)
-                        .requestMatchers("/api/crops/**").permitAll()
+                        .requestMatchers(HttpMethod.GET,"/api/crops/**").permitAll()
 
                         // 농산물 가격 조회 허용 추가 (GET 요청만 인증 없이 통과)
                         .requestMatchers(HttpMethod.GET, "/api/prices/**").permitAll()
