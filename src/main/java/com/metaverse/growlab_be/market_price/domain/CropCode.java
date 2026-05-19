@@ -20,7 +20,7 @@ public class CropCode {
     private String itemName;
 
     // KAMIS 품목 코드
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String itemCode;
 
     // 품종 코드
