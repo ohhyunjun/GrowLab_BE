@@ -1,5 +1,6 @@
 package com.metaverse.growlab_be.market_price.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
@@ -8,6 +9,8 @@ import java.util.List;
 
 @Getter
 @Setter
+@JsonIgnoreProperties(ignoreUnknown = true)
+
 public class KamisResponseDto {
 
     @JsonProperty("data")
@@ -15,6 +18,8 @@ public class KamisResponseDto {
 
     @Getter
     @Setter
+    @JsonIgnoreProperties(ignoreUnknown = true)
+
     public static class KamisData {
         @JsonProperty("item")
         private List<KamisItem> item;
@@ -22,18 +27,20 @@ public class KamisResponseDto {
 
     @Getter
     @Setter
+    @JsonIgnoreProperties(ignoreUnknown = true)
+
     public static class KamisItem {
         @JsonProperty("itemname")
-        private String itemname; // 품목명
+        private List<String> itemname;// 품목명
 
         @JsonProperty("kindname")
-        private String kindname; // 품목 세부명
+        private List<String> kindname; // 품목 세부명
 
         @JsonProperty("countyname")
         private String countyname; // 지역명
 
         @JsonProperty("marketname")
-        private String marketname; // 시장명
+        private List<String> marketname; // 시장명
 
         @JsonProperty("yyyy")
         private String yyyy; // 가격조사 년도

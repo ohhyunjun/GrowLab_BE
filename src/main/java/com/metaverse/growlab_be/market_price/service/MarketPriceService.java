@@ -1,7 +1,6 @@
 package com.metaverse.growlab_be.market_price.service;
 
 import com.metaverse.growlab_be.market_price.domain.MarketPrice;
-import com.metaverse.growlab_be.market_price.dto.KamisResponseDto;
 import com.metaverse.growlab_be.market_price.dto.MarketPriceResponseDto;
 import com.metaverse.growlab_be.market_price.repository.MarketPriceRepository;
 import lombok.RequiredArgsConstructor;
@@ -10,7 +9,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -99,6 +99,55 @@ public class MarketPriceService {
                     .block();
 
             log.info("{} 응답 = {}", itemName, responseBody);
+
+
+            // 응답이 JSON 문자열로 오기 때문에, ObjectMapper를 사용해서 JSON 파싱
+            try {
+
+                ObjectMapper objectMapper = new ObjectMapper();
+                // JSON 문자열을 트리 구조로 파싱하여 루트 노드 얻기
+                JsonNode root = objectMapper.readTree(responseBody);
+                // "data" 노드 아래의 "item" 배열을 탐색
+                JsonNode items = root.path("data").path("item");
+
+                for (JsonNode item : items) {
+
+                    String itemNameValue = item.path("itemname").asText();
+                    String kindName = item.path("kindname").asText();
+                    String marketName = item.path("marketname").asText();
+                    String countyName = item.path("countyname").asText();
+                    String price = item.path("price").asText();
+
+                    if (itemNameValue.isBlank()) {
+                        continue;
+                    }
+
+                    if (marketName.isBlank()) {
+                        continue;
+                    }
+
+                    // 평균/평년 데이터 제거
+                    if (countyName.contains("평균") || countyName.contains("평년")) {
+                        continue;
+                    }
+
+                    // 가격 비어있는 경우 제거
+                    if (price.equals("-") || price.isBlank()) {
+                        continue;
+                    }
+
+                    log.info("품목명 = {}", itemNameValue);
+                    log.info("품종명 = {}", kindName);
+                    log.info("시장명 = {}", marketName);
+                    log.info("지역명 = {}", countyName);
+                    log.info("가격 = {}", price);
+                }
+
+            } catch (Exception e) {
+
+                log.error("JSON 파싱 실패", e);
+
+            }
         }
     }
 }
