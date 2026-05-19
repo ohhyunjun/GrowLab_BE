@@ -23,22 +23,25 @@ public class KamisResponseDto {
     @Getter
     @Setter
     public static class KamisItem {
-        @JsonProperty("item_name")
-        private String itemName;
+        @JsonProperty("itemname")
+        private String itemname; // 품목명
 
-        @JsonProperty("dpr1")
-        private String wholesalePrice;
+        @JsonProperty("kindname")
+        private String kindname; // 품목 세부명
 
-        @JsonProperty("dpr2")
-        private String retailPrice;
+        @JsonProperty("countyname")
+        private String countyname; // 지역명
 
-        @JsonProperty("kind_name")
-        private String kindName;
+        @JsonProperty("marketname")
+        private String marketname; // 시장명
 
         @JsonProperty("yyyy")
-        private String year;
+        private String yyyy; // 가격조사 년도
 
         @JsonProperty("regday")
-        private String regDay;
+        private String regday; // 가격조사 일자
+
+        @JsonProperty("price")
+        private String price; // 가격
     }
 }

@@ -19,6 +19,13 @@ public class MarketPriceController {
     private final MarketPriceService marketPriceService;
 
 
+    // 테스트용 API: KAMIS에서 가격 데이터를 수집해서 DB에 저장하는 기능을 수동으로 실행할 수 있도록 하는 엔드포인트
+    @GetMapping("/test-fetch")
+    public ResponseEntity<String> testFetch() {
+        marketPriceService.fetchAndSaveMarketPrice();
+        return ResponseEntity.ok("KAMIS 수집 완료");
+    }
+
     // 1. 특정 품목의 가장 최신 도소매 가격 조회
     @GetMapping("/latest")
     public ResponseEntity<MarketPriceResponseDto> getLatestPrice(@RequestParam("itemName") String itemName) {
