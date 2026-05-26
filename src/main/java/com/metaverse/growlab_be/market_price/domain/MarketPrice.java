@@ -14,8 +14,8 @@ import java.time.LocalDate;
         name = "market_price",
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uk_item_date",
-                        columnNames = {"item_name", "price_date"} // 같은 날짜에 동일 품목은 중복 저장 방지
+                        name = "uk_item_date_market_type",
+                        columnNames = {"item_name", "price_date", "market_type"}
                 )
         }
 )
@@ -50,10 +50,20 @@ public class MarketPrice {
     @Column(name = "price_date", nullable = false)
     private LocalDate priceDate;
 
+    // 거래 유형 (소매/도매)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "market_type", nullable = false, length = 20)
+    private MarketType marketType;
+
     // CropCode과의 연관 관계 설정(단방향)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "crop_code_id")
     private CropCode cropCode;
+
+    public enum MarketType {
+        RETAIL,     // 소매
+        WHOLESALE   // 도매
+    }
 
     @Builder
     public MarketPrice(
@@ -63,6 +73,7 @@ public class MarketPrice {
             String marketName,
             String countyName,
             LocalDate priceDate,
+            MarketType marketType,
             CropCode cropCode
     ) {
         this.itemName = itemName;
@@ -71,6 +82,7 @@ public class MarketPrice {
         this.marketName = marketName;
         this.countyName = countyName;
         this.priceDate = priceDate;
+        this.marketType = marketType;
         this.cropCode = cropCode;
     }
 }
