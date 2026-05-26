@@ -91,7 +91,7 @@ public class DeviceService {
             throw new AccessDeniedException("해당 기기에 대한 권한이 없습니다.");
         }
 
-        boolean hasPlant = plantRepository.findByDeviceId(device.getId()).isPresent();
+        boolean hasPlant = plantRepository.existsByDeviceId(device.getId());
         if (hasPlant) {
             throw new IllegalStateException("식물이 연결된 기기는 삭제할 수 없습니다.");
         }

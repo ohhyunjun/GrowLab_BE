@@ -124,17 +124,24 @@ public class NoticeService {
                         device.getUser(), dto.getSerial_number(), sensor, cooldownTime);
         if (recentExists) return;
 
-        // 생성
-        String message = String.format("[%s] 이상값 감지: %.2f", dto.getSensor(), dto.getValue());
-        String additionalData = String.format(
-                "{\"sensor\":\"%s\",\"value\":%.2f}", dto.getSensor(), dto.getValue()
-        );
+        // 메시지 생성
+        String message;
+        String additionalData;
+        if ("WATER".equals(sensor)) {
+            message = "[물 부족] 수위가 낮습니다. 물을 보충해주세요.";
+            additionalData = "{\"sensor\":\"WATER\",\"value\":0}";
+        } else {
+            message = String.format("[%s] 이상값 감지: %.2f", dto.getSensor(), dto.getValue());
+            additionalData = String.format(
+                    "{\"sensor\":\"%s\",\"value\":%.2f}", dto.getSensor(), dto.getValue()
+            );
+        }
 
         Notice notice = new Notice(
                 dto.getSerial_number(),
                 message,
                 NoticeType.SENSOR_ALERT,
-                1,  // 우선순위 높음
+                1,
                 additionalData,
                 device.getUser()
         );
@@ -142,7 +149,6 @@ public class NoticeService {
     }
 
     // [공통 검증 메서드]
-
     //  본인 확인 검증
     private void validateOwner(Notice notice, User user) {
         if (!notice.getUser().getId().equals(user.getId())) {
@@ -168,7 +174,8 @@ public class NoticeService {
             "TDS", 12,
             "PH", 12,
             "TEMP", 4,
-            "HUM", 4
+            "HUM", 4,
+            "WATER", 4
     );
 
 

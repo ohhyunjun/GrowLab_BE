@@ -14,5 +14,6 @@ public class PhotoRequestDto {
     private String detections;
     private MultipartFile imageFile;
     private String serialNumber;
+    private Integer portIndex;
 
 }

@@ -4,6 +4,7 @@ import lombok.Getter;
 
 @Getter
 public class SensorLogRequestDto {
+
     private String serial_number;
 
     private Float temperature;

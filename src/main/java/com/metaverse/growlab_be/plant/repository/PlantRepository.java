@@ -22,8 +22,11 @@ public interface PlantRepository extends JpaRepository<Plant,Long> {
     // 디바이스 중복 등록 확인(포트번호 확인)
     boolean existsByDeviceIdAndPortIndex(String deviceId, Integer portIndex);
 
+    //
+    boolean existsByDeviceId(String deviceId);
+
     // 디바이스로 식물 조회
-    Optional<Plant> findByDeviceId(String deviceSerial);
+    Optional<Plant> findByDeviceIdAndPortIndex(String deviceSerial, Integer portIndex);
 
     // 특정 성장 단계에 있는 모든 식물을 조회하는 메서드 추가
     List<Plant> findByPlantStage(PlantStage plantStage);
