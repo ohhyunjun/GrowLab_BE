@@ -33,4 +33,6 @@ public interface NoticeRepository extends JpaRepository<Notice, Long> {
     boolean existsByUserAndDeviceSerialAndAdditionalDataContainingAndCreatedAtAfter(
             User user, String deviceSerial, String sensor, LocalDateTime after);
 
+    void deleteByDeviceSerial(String deviceSerial);
+
 }

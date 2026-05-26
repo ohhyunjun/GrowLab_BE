@@ -12,4 +12,6 @@ import java.util.Optional;
 public interface SensorAnomalyRepository extends JpaRepository<SensorAnomaly,Long> {
     Optional<SensorAnomaly> findTopByDeviceAndSensorTypeAndEndedAtIsNull(
             Device device, SensorType sensorType);
+
+    void deleteByDevice(Device device);
 }

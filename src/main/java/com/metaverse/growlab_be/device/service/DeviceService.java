@@ -5,8 +5,13 @@ import com.metaverse.growlab_be.device.domain.Device;
 import com.metaverse.growlab_be.device.dto.DeviceResponseDto;
 import com.metaverse.growlab_be.device.dto.LedRequestDto;
 import com.metaverse.growlab_be.device.repository.DeviceRepository;
+import java.io.File;
+import com.metaverse.growlab_be.notice.repository.NoticeRepository;
+import com.metaverse.growlab_be.photo.domain.Photo;
 import com.metaverse.growlab_be.photo.repository.PhotoRepository;
 import com.metaverse.growlab_be.plant.repository.PlantRepository;
+import com.metaverse.growlab_be.sensor_log.repository.SensorAnomalyRepository;
+import com.metaverse.growlab_be.sensor_log.repository.SensorLogRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -17,9 +22,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+
 @Service
 @RequiredArgsConstructor
 public class DeviceService {
+    private final SensorLogRepository sensorLogRepository;
+    private final SensorAnomalyRepository sensorAnomalyRepository;
+    private final NoticeRepository noticeRepository;
     private final DeviceRepository deviceRepository;
     private final PlantRepository plantRepository;
     private final PhotoRepository photoRepository;
@@ -96,7 +105,26 @@ public class DeviceService {
             throw new IllegalStateException("식물이 연결된 기기는 삭제할 수 없습니다.");
         }
 
-        deviceRepository.delete(device);
+        // 이미지 파일 + Photo 삭제
+        List<Photo> photos = photoRepository.findByDevice(device);
+        photos.forEach(photo -> new File(photo.getFilePath()).delete());
+        photoRepository.deleteByDevice(device);
+
+        // 연관 데이터 삭제
+        sensorLogRepository.deleteByDevice(device);
+        sensorAnomalyRepository.deleteByDevice(device);
+        noticeRepository.deleteByDeviceSerial(serialNumber);
+
+        // 기기 초기화
+        device.setUser(null);
+        device.setDeviceNickname(null);
+        device.setStatus(false);
+        device.setLedStatus(false);
+        device.setLedMode(false);
+        device.setLedOnTime(null);
+        device.setLedOffTime(null);
+        device.setPhotoInterval(12);
+        device.setPortStatus("00000000");
     }
 
     // 사용자 웹에서 촬영주기 설정시 이를 db 저장 및 mqtt로 라즈베리파이에게 전송

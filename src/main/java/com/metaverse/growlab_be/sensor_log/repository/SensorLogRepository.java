@@ -10,5 +10,5 @@ import java.util.Optional;
 
 @Repository
 public interface SensorLogRepository extends JpaRepository<SensorLog, Long>  {
-    Optional<SensorLog> findTopBySerialNumberOrderByCreatedAtDesc(Device device);
+    void deleteByDevice(Device device);
 }

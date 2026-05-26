@@ -19,7 +19,7 @@ public class SensorLog extends TimeStamped {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "serial_number", nullable = false)
-    private Device serialNumber;
+    private Device device;
 
     @Column()
     private Float temperature;
@@ -36,8 +36,8 @@ public class SensorLog extends TimeStamped {
     @Column()
     private Boolean water_level_status;
 
-    public SensorLog(Device serial_number, Float temperature, Float humidity, Float ph, Float tds, Boolean water_level_status) {
-        this.serialNumber = serial_number;
+    public SensorLog(Device device, Float temperature, Float humidity, Float ph, Float tds, Boolean water_level_status) {
+        this.device = device;
         this.temperature = temperature;
         this.humidity = humidity;
         this.ph = ph;
