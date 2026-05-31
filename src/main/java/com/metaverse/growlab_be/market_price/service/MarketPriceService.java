@@ -1,17 +1,23 @@
 package com.metaverse.growlab_be.market_price.service;
 
+import com.metaverse.growlab_be.market_price.domain.CropCode;
 import com.metaverse.growlab_be.market_price.domain.MarketPrice;
-import com.metaverse.growlab_be.market_price.dto.KamisResponseDto;
-import com.metaverse.growlab_be.market_price.dto.MarketPriceResponseDto;
+import com.metaverse.growlab_be.market_price.dto.KamisItemDto;
+import com.metaverse.growlab_be.market_price.dto.KamisPriceResponseDto;
+import com.metaverse.growlab_be.market_price.dto.MarketPriceRequestDto;
+import com.metaverse.growlab_be.market_price.repository.CropCodeRepository;
 import com.metaverse.growlab_be.market_price.repository.MarketPriceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -21,91 +27,266 @@ import java.util.stream.Collectors;
 public class MarketPriceService {
 
     private final MarketPriceRepository marketPriceRepository;
+    private final CropCodeRepository cropCodeRepository;
     private final WebClient kamisWebClient;
 
-    /** KAMIS에서 DB에 추가할 TARGET_ITEMS 목록을 만들기.
-    TODO: [확장성] 나중에 방울토마토, 바질 등 새로운 작물이 추가되면 아래 리스트에 이름표만 추가할 것
-    예: List.of("상추", "방울토마토", "바질");
-    **/
-    private static final List<String> TARGET_ITEMS = List.of("상추");
+    @Value("${kamis.api.key}")
+    private String certKey;
 
-    // 1. 특정 품목의 가장 최신 도소매 가격 조회
-    public MarketPriceResponseDto getLatestPrice(String itemName) {
-        MarketPrice marketPrice = marketPriceRepository.findFirstByItemNameOrderByPriceDateDesc(itemName)
-                .orElseThrow(() -> new IllegalArgumentException("해당 품목의 가격 데이터가 존재하지 않습니다: " + itemName));
+    @Value("${kamis.api.id}")
+    private String certId;
 
-        return new MarketPriceResponseDto(marketPrice);
+    // ─── 조회 ────────────────────────────────────────────────
+
+    // 특정 품목/품종 최신 가격 1건
+    public MarketPrice getLatestPrice(String itemCode, String kindCode) {
+        return marketPriceRepository
+                .findFirstByItemCodeAndKindCodeOrderByPriceDateDesc(itemCode, kindCode)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "가격 데이터가 없습니다. itemCode=" + itemCode + ", kindCode=" + kindCode));
     }
 
-    // 2. 특정 품목의 최근 일주일(7일)간 가격 추이 조회
-    public List<MarketPriceResponseDto> getWeeklyPriceMovement(String itemName) {
-        // 오늘 날짜 기준으로 6일 전부터 오늘까지 총 7일간의 데이터를 타겟으로 잡음
+    // 특정 품목/품종 최근 7일 가격 내역
+    public List<MarketPrice> getWeeklyPrices(String itemCode, String kindCode) {
         LocalDate startDate = LocalDate.now().minusDays(6);
-
-        List<MarketPrice> prices = marketPriceRepository
-                .findByItemNameAndPriceDateGreaterThanEqualOrderByPriceDateAsc(itemName, startDate);
-
-        // 엔티티 리스트를 DTO 리스트로 변환하여 반환 (.stream() 활용)
-        return prices.stream()
-                .map(MarketPriceResponseDto::new)
-                .collect(Collectors.toList());
+        return marketPriceRepository
+                .findByItemCodeAndKindCodeAndPriceDateGreaterThanEqualOrderByPriceDateAsc(
+                        itemCode, kindCode, startDate);
     }
 
-    // 3. 외부 오픈 API(KAMIS) 호출 및 DB 저장 로직
+    // ─── 수집 ────────────────────────────────────────────────
+
     @Transactional
     public void fetchAndSaveMarketPrice() {
-        log.info("=== KAMIS 외부 농산물 가격 API 호출 시작 ===");
+        log.info("[MarketPrice] 가격 수집 시작");
 
-        // TODO: KAMIS에서 인증키 발급받으면 여기에 대입
-        String certKey = "YOUR_KAMIS_API_KEY_HERE";
-        String certId = "YOUR_KAMIS_ID_HERE"; // KAMIS는 요청시 ID(이메일이나 회원ID)를 요구할 수 있습니다.
+        List<CropCode> cropCodes = cropCodeRepository.findAll();
 
+        if (cropCodes.isEmpty()) {
+            log.warn("[MarketPrice] CropCode 없음. /api/crops/sync 먼저 실행 필요");
+            return;
+        }
+
+        int totalSaved = 0;
+
+        for (CropCode cropCode : cropCodes) {
+            try {
+                int retailSaved = fetchAndSave(cropCode, MarketPrice.MarketType.RETAIL);
+                int wholesaleSaved = fetchAndSave(cropCode, MarketPrice.MarketType.WHOLESALE);
+                totalSaved += retailSaved + wholesaleSaved;
+            } catch (Exception e) {
+                log.error("[MarketPrice] 수집 실패 - itemCode: {}, kindCode: {}, error: {}",
+                        cropCode.getItemCode(), cropCode.getKindCode(), e.getMessage());
+            }
+        }
+
+        log.info("[MarketPrice] 가격 수집 완료 - 총 {}건 저장", totalSaved);
+    }
+
+    // ✅ 추가 - 날짜 범위 수집 (초기 수집용)
+    @Transactional
+    public void fetchAndSaveByDateRange(LocalDate startDate, LocalDate endDate) {
+        log.info("[MarketPrice] 날짜 범위 수집 시작 - {} ~ {}", startDate, endDate);
+
+        List<CropCode> cropCodes = cropCodeRepository.findAll();
+
+        if (cropCodes.isEmpty()) {
+            log.warn("[MarketPrice] CropCode 없음. /api/crops/sync 먼저 실행 필요");
+            return;
+        }
+
+        int totalSaved = 0;
+
+        for (CropCode cropCode : cropCodes) {
+            try {
+                int retailSaved = fetchAndSaveRange(cropCode,
+                        MarketPrice.MarketType.RETAIL, startDate, endDate);  // ✅ 추가
+                int wholesaleSaved = fetchAndSaveRange(cropCode,
+                        MarketPrice.MarketType.WHOLESALE, startDate, endDate);  // ✅ 추가
+                totalSaved += retailSaved + wholesaleSaved;
+            } catch (Exception e) {
+                log.error("[MarketPrice] 수집 실패 - itemCode: {}, kindCode: {}, error: {}",
+                        cropCode.getItemCode(), cropCode.getKindCode(), e.getMessage());
+            }
+        }
+
+        log.info("[MarketPrice] 날짜 범위 수집 완료 - 총 {}건 저장", totalSaved);
+    }
+
+    private int fetchAndSave(CropCode cropCode, MarketPrice.MarketType marketType) {
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+
+        MarketPriceRequestDto request = MarketPriceRequestDto.builder()
+                .startDate(yesterday)
+                .endDate(yesterday)
+                .itemCategoryCode(cropCode.getItemCategoryCode())
+                .itemCode(cropCode.getItemCode())
+                .kindCode(cropCode.getKindCode())
+                .rankCode(null)
+                .marketType(marketType)
+                .build();
+
+        return execute(request, cropCode, marketType);  // ✅ 수정 - 공통 메서드로 분리
+    }
+
+    private int fetchAndSaveRange(CropCode cropCode, MarketPrice.MarketType marketType,
+                                  LocalDate startDate, LocalDate endDate) {
+        MarketPriceRequestDto request = MarketPriceRequestDto.builder()
+                .startDate(startDate)
+                .endDate(endDate)
+                .itemCategoryCode(cropCode.getItemCategoryCode())
+                .itemCode(cropCode.getItemCode())
+                .kindCode(cropCode.getKindCode())
+                .rankCode(null)
+                .marketType(marketType)
+                .build();
+
+        return execute(request, cropCode, marketType);
+    }
+
+    // ✅ 추가 - fetchAndSave/fetchAndSaveRange 공통 로직
+    private int execute(MarketPriceRequestDto request, CropCode cropCode,
+                        MarketPrice.MarketType marketType) {
+        KamisPriceResponseDto response = callKamisApi(request);
+
+        if (response == null) {
+            log.warn("[MarketPrice] 응답 null");
+            return 0;
+        }
+        if (response.hasNoData()) {
+            log.debug("[MarketPrice] 데이터 없음 - {} ({})",
+                    cropCode.getItemName(), cropCode.getItemCode());
+            return 0;
+        }
+        if (!response.isSuccess()) {
+            log.warn("[MarketPrice] API 실패 - errorCode={}",
+                    response.getData() != null
+                            ? response.getData().getErrorCode() : "null");
+            return 0;
+        }
+        if (response.getData() == null || response.getData().getItem() == null) {
+            return 0;
+        }
+
+        List<MarketPrice> toSave = response.getData().getItem().stream()
+                .filter(this::isValidItem)
+                .map(item -> toEntity(item, cropCode, marketType))
+                .filter(Objects::nonNull)
+                .filter(mp -> !isDuplicate(mp))
+                .collect(Collectors.toList());
+
+        if (!toSave.isEmpty()) {
+            marketPriceRepository.saveAll(toSave);
+            log.info("[MarketPrice] 저장 - {} {} {}건",
+                    cropCode.getItemName(), marketType, toSave.size());
+        }
+
+        return toSave.size();
+    }
+
+    // ─── KAMIS API 호출 ──────────────────────────────────────
+
+    private KamisPriceResponseDto callKamisApi(MarketPriceRequestDto request) {
         try {
-            // 1. 외부 API 호출 및 응답 받기
-            KamisResponseDto response = kamisWebClient.get()
+            return kamisWebClient.get()
                     .uri(uriBuilder -> uriBuilder
                             .path("/service/price/xml.do")
-                            .queryParam("action", "periodProductList")
+                            .queryParam("action", request.getAction())
                             .queryParam("p_cert_key", certKey)
                             .queryParam("p_cert_id", certId)
                             .queryParam("p_returntype", "json")
+                            .queryParam("p_startday", request.getFormattedStartDate())
+                            .queryParam("p_endday", request.getFormattedEndDate())
+                            .queryParam("p_itemcategorycode", request.getItemCategoryCode())
+                            .queryParam("p_itemcode", request.getItemCode())
+                            .queryParam("p_kindcode", request.getKindCode())
+                            .queryParam("p_productrankcode", request.getRankCode())
+                            .queryParam("p_countrycode", request.getRegionCode())
+                            .queryParam("p_convert_kg_yn", request.getConvertKgYn())
                             .build())
                     .retrieve()
-                    .bodyToMono(KamisResponseDto.class)
+                    .bodyToMono(KamisPriceResponseDto.class)  // ← 변경
                     .block();
-
-            // 2. 받아온 데이터가 가득 차 있다면 반복문 돌며 DB에 저장
-            if (response != null && response.getData() != null && response.getData().getItem() != null) {
-                for (KamisResponseDto.KamisItem item : response.getData().getItem()) {
-
-                    if (TARGET_ITEMS.contains(item.getItemName())) {
-
-                        // 주말/공휴일 등 가격 데이터가 없어서 "-"로 넘어오는 경우 패스
-                        if ("-".equals(item.getWholesalePrice()) || "-".equals(item.getRetailPrice())) {
-                            log.warn("⚠️ {}의 가격 데이터가 존재하지 않는 날짜입니다. (공휴일/주말 가능성)", item.getItemName());
-                            continue;
-                        }
-
-                        // 콤마(,) 제거 후 숫자로 변환
-                        int wholesale = Integer.parseInt(item.getWholesalePrice().replace(",", ""));
-                        int retail = Integer.parseInt(item.getRetailPrice().replace(",", ""));
-
-                        MarketPrice marketPrice = MarketPrice.builder()
-                                .itemName(item.getItemName())
-                                .wholesalePrice(wholesale)
-                                .retailPrice(retail)
-                                .priceUnit("1kg")
-                                .priceDate(LocalDate.now())
-                                .build();
-
-                        marketPriceRepository.save(marketPrice);
-                        log.info("📢 KAMIS 데이터 DB 저장 완료: {} (도매:{}, 소매:{})", item.getItemName(), wholesale, retail);
-                    }
-                }
-            }
-
         } catch (Exception e) {
-            log.error("KAMIS API 데이터 파싱 및 저장 중 에러 발생: ", e);
+            log.error("[MarketPrice] API 호출 실패 - itemCode: {}, error: {}",
+                    request.getItemCode(), e.getMessage());
+            return null;
+        }
+    }
+
+    // ─── 검증/변환 ──────────────────────────────────────────
+
+    private boolean isValidItem(KamisItemDto item) {
+        if (item.getItemname() == null || item.getItemname().isBlank()) return false;
+        if (item.getMarketname() == null || item.getMarketname().isBlank()) return false;
+        if (item.getPrice() == null || item.getPrice().isBlank()
+                || item.getPrice().equals("-")) return false;
+        if (item.getCountyname() != null &&
+                (item.getCountyname().contains("평균") ||
+                        item.getCountyname().contains("평년"))) return false;
+        return true;
+    }
+
+    private boolean isDuplicate(MarketPrice mp) {
+        return marketPriceRepository
+                .existsByItemCodeAndKindCodeAndPriceDateAndMarketTypeAndRegionCodeAndMarketCode(
+                        mp.getItemCode(), mp.getKindCode(),
+                        mp.getPriceDate(), mp.getMarketType(),
+                        mp.getRegionCode(), mp.getMarketCode());
+    }
+
+    private MarketPrice toEntity(KamisItemDto item, CropCode cropCode,
+                                 MarketPrice.MarketType marketType) {
+        Integer price = parsePrice(item.getPrice());
+        if (price == null) return null;
+
+        LocalDate priceDate = parseDate(item.getYyyy(), item.getRegday());
+        if (priceDate == null) return null;
+
+        return MarketPrice.builder()
+                .itemCode(cropCode.getItemCode())
+                .itemName(cropCode.getItemName())
+                .kindCode(cropCode.getKindCode())
+                .kindName(cropCode.getKindName())
+                .rankCode(null)
+                .regionCode(item.getCountyname())   // TODO: 추후 regionCode로 변경
+                .regionName(item.getCountyname())
+                .marketCode(item.getMarketname())   // TODO: 추후 marketCode로 변경
+                .marketName(item.getMarketname())
+                .price(price)
+                .unit(
+                marketType == MarketPrice.MarketType.RETAIL
+                        ? cropCode.getRetailUnit()
+                        : cropCode.getWholesaleUnit()
+                )
+                .priceDate(priceDate)
+                .marketType(marketType)
+                .build();
+    }
+
+    // 가격 파싱 (콤마 제거, 안전)
+    private Integer parsePrice(String priceStr) {
+        if (priceStr == null || priceStr.isBlank() || priceStr.equals("-")) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(priceStr.replace(",", "").trim());
+        } catch (NumberFormatException e) {
+            log.warn("[MarketPrice] 가격 파싱 실패: {}", priceStr);
+            return null;
+        }
+    }
+
+    // 날짜 파싱 (yyyy + MM/dd → LocalDate)
+    private LocalDate parseDate(String yyyy, String regday) {
+        if (yyyy == null || regday == null) return null;
+        try {
+            return LocalDate.parse(
+                    yyyy + "-" + regday,
+                    DateTimeFormatter.ofPattern("yyyy-MM/dd"));
+        } catch (Exception e) {
+            log.warn("[MarketPrice] 날짜 파싱 실패: {}-{}", yyyy, regday);
+            return null;
         }
     }
 }

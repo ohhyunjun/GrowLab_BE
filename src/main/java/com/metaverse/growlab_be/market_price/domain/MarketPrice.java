@@ -1,6 +1,7 @@
 package com.metaverse.growlab_be.market_price.domain;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -8,14 +9,15 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 
 @Getter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(
         name = "market_price",
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uk_item_date",
-                        columnNames = {"item_name", "price_date"} // 같은 날짜에 동일 품목은 중복 저장 방지
+                        name = "uk_market_price",
+                        columnNames = {"item_code", "kind_code", "price_date",
+                                "market_type", "region_code", "market_code"}
                 )
         }
 )
@@ -26,37 +28,86 @@ public class MarketPrice {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // 품목코드
+    @Column(name = "item_code", nullable = false, length = 10)
+    private String itemCode;
+
     // 품목명
-    // (API 스펙의 item_name 혹은 item_code와 매핑)
     @Column(name = "item_name", nullable = false, length = 50)
     private String itemName;
 
-    // 도매 가격
-    // (API 스펙의 dpr1 또는 wholesale_price와 매핑)
-    @Column(name = "wholesale_price")
-    private Integer wholesalePrice;
+    // 품종코드
+    @Column(name = "kind_code", nullable = false, length = 10)
+    private String kindCode;
 
-    // 소매 가격
-    // (API 스펙의 dpr2 또는 retail_price와 매핑)
-    @Column(name = "retail_price")
-    private Integer retailPrice;
+    // 품종명
+    @Column(name = "kind_name", length = 50)
+    private String kindName;
+
+    // 등급코드
+    @Column(name = "rank_code", length = 10)
+    private String rankCode;
+
+    // 지역코드
+    @Column(name = "region_code", length = 10)
+    private String regionCode;
+
+    // 지역명
+    @Column(name = "region_name", length = 50)
+    private String regionName;
+
+    // 시장코드
+    @Column(name = "market_code", nullable = false, length = 10)
+    private String marketCode;
+
+    // 시장명
+    @Column(name = "market_name", length = 100)
+    private String marketName;
+
+    // 시장 가격
+    @Column(name = "price")
+    private Integer price;
 
     // 가격 단위
-    // (API 스펙의 unit 혹은 kind_name과 매핑)
-    @Column(name = "price_unit", length = 20)
-    private String priceUnit;
+    @Column(name = "unit", length = 20)
+    private String unit;
 
-    // 가격 조사 기준 날짜
-    // API 스펙의 yyyy-MM-dd 형태의 날짜 데이터와 매핑)
+    // 가격 조사 날짜
     @Column(name = "price_date", nullable = false)
     private LocalDate priceDate;
 
+    // 거래 유형 (소매/도매)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "market_type", nullable = false, length = 20)
+    private MarketType marketType;
+
+    public enum MarketType {
+        RETAIL,     // 소매
+        WHOLESALE   // 도매
+    }
+
     @Builder
-    public MarketPrice(String itemName, Integer wholesalePrice, Integer retailPrice, String priceUnit, LocalDate priceDate) {
+    public MarketPrice(
+            String itemCode, String itemName,
+            String kindCode, String kindName,
+            String rankCode,
+            String regionCode, String regionName,
+            String marketCode, String marketName,
+            Integer price, String unit,
+            LocalDate priceDate, MarketType marketType
+    ) {
+        this.itemCode = itemCode;
         this.itemName = itemName;
-        this.wholesalePrice = wholesalePrice;
-        this.retailPrice = retailPrice;
-        this.priceUnit = priceUnit;
+        this.kindCode = kindCode;
+        this.kindName = kindName;
+        this.rankCode = rankCode;
+        this.regionCode = regionCode;
+        this.regionName = regionName;
+        this.marketCode = marketCode;
+        this.marketName = marketName;
+        this.price = price;
+        this.unit = unit;
         this.priceDate = priceDate;
+        this.marketType = marketType;
     }
 }

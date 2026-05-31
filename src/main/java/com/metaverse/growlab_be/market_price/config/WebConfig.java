@@ -1,4 +1,4 @@
-package com.metaverse.growlab_be.auth.config;
+package com.metaverse.growlab_be.market_price.config;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
