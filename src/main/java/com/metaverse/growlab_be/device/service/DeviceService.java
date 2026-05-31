@@ -71,7 +71,10 @@ public class DeviceService {
                             plant.getName(),
                             plant.getPortIndex(),
                             plant.getSpecies().getName(),
-                            plant.getPlantStage()
+                            plant.getPlantStage(),
+                            plant.getPlantedAt(),
+                            plant.getGerminatedAt(),
+                            plant.getMaturedAt()
                     ))
                     .toList();
 

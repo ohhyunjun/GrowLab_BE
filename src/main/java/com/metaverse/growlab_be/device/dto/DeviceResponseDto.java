@@ -58,10 +58,19 @@ public class DeviceResponseDto {
     @Getter
     @AllArgsConstructor
     public static class PlantSummaryDto {
-        private Long id;
-        private String name;
-        private Integer portIndex;
-        private String species;
+        private Long       id;
+        private String     name;
+        private Integer    portIndex;
+        private String     species;
         private PlantStage plantStage;
+
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
+        private LocalDateTime plantedAt;
+
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
+        private LocalDateTime germinatedAt;
+
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
+        private LocalDateTime maturedAt;
     }
 }
