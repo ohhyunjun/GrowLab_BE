@@ -64,8 +64,13 @@ public class SecurityConfig {
                         // 1. 인증 없이 접근 가능한 공개 API
                         .requestMatchers("/api/auth/**", "/api/sample/**", "/api/files/**","/uploads/**").permitAll()
 
+                        // 농산물 코드 조회 허용 추가 (인증 없이 통과)
+                        .requestMatchers(HttpMethod.GET,"/api/crops/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/crops/**").permitAll()
+
                         // 농산물 가격 조회 허용 추가 (GET 요청만 인증 없이 통과)
                         .requestMatchers(HttpMethod.GET, "/api/prices/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/prices/**").permitAll()
 
                         // 라즈베리파이 -> 서버 전송 (JWT 없이 시리얼 번호로만 인증)
                         .requestMatchers(HttpMethod.POST, "/api/sensor_logs/**").permitAll()
