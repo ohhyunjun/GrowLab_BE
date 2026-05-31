@@ -82,6 +82,7 @@ public class DeviceService {
         deviceRepository.save(newDevice);
     }
 
+    // 일반 유저: 소유권만 해제 (시리얼 넘버 유지)
     @Transactional
     public void deleteDevice(String serialNumber, User user) {
         Device device = deviceRepository.findById(serialNumber)
@@ -95,6 +96,20 @@ public class DeviceService {
         if (hasPlant) {
             throw new IllegalStateException("식물이 연결된 기기는 삭제할 수 없습니다.");
         }
+
+        device.setUser(null);
+        device.setDeviceNickname(null);
+        device.setStatus(false);
+        device.setLedStatus(false);
+        device.setPhotoInterval(12);
+        device.setPortStatus("00000000");
+    }
+
+    // Admin 전용: 시리얼 넘버 포함 완전 삭제
+    @Transactional
+    public void deleteDeviceByAdmin(String serialNumber) {
+        Device device = deviceRepository.findById(serialNumber)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기기입니다."));
 
         deviceRepository.delete(device);
     }

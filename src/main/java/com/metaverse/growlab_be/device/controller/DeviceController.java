@@ -58,6 +58,7 @@ public class DeviceController {
         }
     }
 
+    // 일반 유저 삭제 (소유권 해제)
     @DeleteMapping("/{serialNumber}")
     public ResponseEntity<String> deleteDevice(
             @PathVariable String serialNumber,
@@ -65,11 +66,23 @@ public class DeviceController {
         try {
             User currentUser = principalDetails.getUser();
             deviceService.deleteDevice(serialNumber, currentUser);
-            return ResponseEntity.ok("기기가 성공적으로 삭제되었습니다.");
+            return ResponseEntity.ok("기기가 성공적으로 해제되었습니다.");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (AccessDeniedException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        }
+    }
+
+    // Admin 전용 완전 삭제
+    @DeleteMapping("/admin/{serialNumber}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<String> deleteDeviceByAdmin(@PathVariable String serialNumber) {
+        try {
+            deviceService.deleteDeviceByAdmin(serialNumber);
+            return ResponseEntity.status(HttpStatus.OK).body("기기가 완전히 삭제되었습니다.");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         }
     }
 
