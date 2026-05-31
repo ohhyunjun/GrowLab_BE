@@ -2,16 +2,21 @@ package com.metaverse.growlab_be.sensor_log.service;
 
 import com.metaverse.growlab_be.device.domain.Device;
 import com.metaverse.growlab_be.device.repository.DeviceRepository;
+import com.metaverse.growlab_be.plant.domain.Plant;
 import com.metaverse.growlab_be.sensor_log.domain.SensorLog;
 import com.metaverse.growlab_be.sensor_log.dto.SensorLogRequestDto;
 import com.metaverse.growlab_be.sensor_log.dto.SensorLogResponseDto;
 import com.metaverse.growlab_be.sensor_log.repository.SensorLogRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,6 +26,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SensorLogService {
     private final SensorLogRepository sensorLogRepository;
     private final DeviceRepository deviceRepository;
+    private final RestTemplate restTemplate;
+
+    @Value("${inference.server.url:http://localhost:5000}")
+    private String inferenceServerUrl;
 
     // SSE emitter 저장소: serialNumber → SseEmitter
     private final Map<String, SseEmitter> emitterMap = new ConcurrentHashMap<>();
@@ -98,6 +107,32 @@ public class SensorLogService {
         }
 
         return emitter;
+    }
+
+    private void triggerInference(Device device) {
+        if (device.getPlants() == null || device.getPlants().isEmpty()) return;
+
+        for (Plant plant : device.getPlants()) {
+            try {
+                int daysFromStart = (int) ChronoUnit.DAYS.between(
+                        plant.getPlantedAt().toLocalDate(),
+                        LocalDateTime.now().toLocalDate()
+                );
+
+                Map<String, Object> request = new HashMap<>();
+                request.put("plant_id",        plant.getId());
+                request.put("serial_number",   device.getId());
+                request.put("current_stage",   plant.getPlantStage().ordinal());
+                request.put("days_from_start", daysFromStart);
+
+                restTemplate.postForEntity(
+                        inferenceServerUrl + "/predict",
+                        request,
+                        Void.class
+                );
+            } catch (Exception e) {
+            }
+        }
     }
 
     public Device getValidDeviceById(String serialNumber){

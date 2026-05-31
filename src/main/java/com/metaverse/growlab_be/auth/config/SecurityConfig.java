@@ -64,6 +64,9 @@ public class SecurityConfig {
                         // 1. 인증 없이 접근 가능한 공개 API
                         .requestMatchers("/api/auth/**", "/api/sample/**", "/api/files/**","/uploads/**").permitAll()
 
+                        //Flask 서버 인증 없이 접근 허용
+                        .requestMatchers(HttpMethod.POST, "/api/predictions").permitAll()
+
                         // 농산물 가격 조회 허용 추가 (GET 요청만 인증 없이 통과)
                         .requestMatchers(HttpMethod.GET, "/api/prices/**").permitAll()
 
