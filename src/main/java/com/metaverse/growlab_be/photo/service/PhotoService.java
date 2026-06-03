@@ -70,7 +70,7 @@ public class PhotoService {
 
         // 한 번에 save
         Photo savedPhoto = photoRepository.save(new Photo(
-                device, filePath, fileName,
+                device, dto.getPortIndex(), filePath, fileName, // portIndex 추가
                 growthResult, growthConf,
                 diseaseResult, diseaseConf
         ));

@@ -18,6 +18,9 @@ public class Photo extends TimeStamped {
     @JoinColumn(name = "device_serial", referencedColumnName = "serial_number")
     private Device device;
 
+    @Column(nullable = false)
+    private Integer portIndex; // 포트 번호
+
     @Column(nullable = false, length = 512)
     private String filePath;
 
@@ -37,10 +40,11 @@ public class Photo extends TimeStamped {
     private Double diseaseConfidence;
 
     // 직접 선언
-    public Photo(Device device, String filePath, String fileName,
+    public Photo(Device device, Integer portIndex, String filePath, String fileName,
                  String growthStageResult, Double confidence,
                  String diseaseResult, Double diseaseConfidence) {
         this.device            = device;
+        this.portIndex         = portIndex;
         this.filePath          = filePath;
         this.fileName          = fileName;
         this.growthStageResult = growthStageResult;
