@@ -41,7 +41,6 @@ public class PhotoService {
     @Value("${file.upload-dir.camera}")
     private String uploadDir;
 
-    // ── 사진 저장 + YOLO 결과 저장 ───────────────────────────────
     @Transactional
     public PhotoResponseDto savePhoto(PhotoRequestDto dto) throws IOException {
         MultipartFile imageFile = dto.getImageFile();
@@ -51,6 +50,10 @@ public class PhotoService {
 
         Device device = deviceRepository.findById(dto.getSerialNumber())
                 .orElseThrow(() -> new IllegalArgumentException("등록되지 않은 기기입니다: " + dto.getSerialNumber()));
+
+        if (dto.getPortIndex() == null) {
+            throw new IllegalArgumentException("포트 번호(portIndex)가 누락되었습니다.");
+        }
 
         // 파일 저장
         File directory = new File(uploadDir);
@@ -68,19 +71,19 @@ public class PhotoService {
         String  diseaseResult = dto.getDiseaseResult()     != null ? dto.getDiseaseResult()     : "no_detection";
         Double  diseaseConf   = dto.getDiseaseConfidence() != null ? dto.getDiseaseConfidence() : 0.0;
 
-        // 한 번에 save
+        // Photo 엔티티 생성 시 portIndex 추가 반영
         Photo savedPhoto = photoRepository.save(new Photo(
-                device, dto.getPortIndex(), filePath, fileName, // portIndex 추가
+                device, dto.getPortIndex(), filePath, fileName,
                 growthResult, growthConf,
                 diseaseResult, diseaseConf
         ));
 
         // Plant 상태 갱신 + 알림
-        if (device.getUser() != null && dto.getPortIndex() != null) {
+        if (device.getUser() != null) {
             plantRepository.findByDeviceIdAndPortIndex(device.getId(), dto.getPortIndex())
                     .ifPresent(plant -> {
                         try {
-                            updatePlantStageAndNotice(device, plant, growthResult,
+                            updatePlantStageAndNotice(device, plant, dto.getPortIndex(), growthResult,
                                     diseaseResult, determineCropType(plant));
                         } catch (Exception e) {
                             System.err.println("식물 상태 업데이트 중 오류: " + e.getMessage());
@@ -91,7 +94,6 @@ public class PhotoService {
         return new PhotoResponseDto(savedPhoto);
     }
 
-    // ── 최신 사진 조회 ────────────────────────────────────────────
     @Transactional(readOnly = true)
     public PhotoResponseDto findLatestPhoto() {
         return photoRepository.findTopByOrderByIdDesc()
@@ -99,60 +101,68 @@ public class PhotoService {
                 .orElseThrow(() -> new IllegalArgumentException("저장된 사진이 없습니다."));
     }
 
-    // ── 식물 상태 업데이트 + Notice 생성 ─────────────────────────
-    private void updatePlantStageAndNotice(Device device, Plant plant,
-                                           String growthResult,
-                                           String diseaseResult,
-                                           String cropType) {
+    private void updatePlantStageAndNotice(Device device, Plant plant, Integer portIndex,
+                                           String growthResult, String diseaseResult, String cropType) {
 
-        // 질병 처리 알림
+        // 1. 질병 상태 업데이트 로직 추가
         if ("disease".equalsIgnoreCase(diseaseResult)) {
-            noticeService.createAnalysisNotice(device, "식물에 이상이 감지되었습니다. 확인해주세요.",
-                    NoticeType.SENSOR_ALERT, 1);
+            plant.setDiseaseResult(diseaseResult);
+            plantRepository.save(plant); // 식물 DB에 질병 상태 반영
+            String message = String.format("[%d번 포트] 식물에 질병이 감지되었습니다. 확인해주세요.", portIndex);
+            noticeService.createAnalysisNotice(device, message, NoticeType.SENSOR_ALERT, 1);
+        } else if ("healthy".equalsIgnoreCase(diseaseResult) || "no_detection".equalsIgnoreCase(diseaseResult)) {
+            plant.setDiseaseResult(null); // 건강할 경우 질병 상태 초기화
+            plantRepository.save(plant);
         }
 
-        // 작물별 생육 단계 처리
+        // 2. 작물별 생육 단계 처리
         if ("lettuce".equalsIgnoreCase(cropType)) {
-            handleLettuceStage(device, plant, plant.getPlantStage(), growthResult);
+            handleLettuceStage(device, plant, portIndex, plant.getPlantStage(), growthResult);
         } else {
-            handleTomatoStage(device, plant, plant.getPlantStage(), growthResult);
+            handleTomatoStage(device, plant, portIndex, plant.getPlantStage(), growthResult);
         }
     }
 
-    private void handleLettuceStage(Device device, Plant plant,
+    private void handleLettuceStage(Device device, Plant plant, Integer portIndex,
                                     PlantStage currentStage, String growthResult) {
         if ("sprout".equalsIgnoreCase(growthResult) && currentStage == PlantStage.SEED) {
             plant.setPlantStage(PlantStage.GERMINATION);
             if (plant.getGerminatedAt() == null) plant.setGerminatedAt(LocalDateTime.now());
             plantRepository.save(plant);
-            noticeService.createAnalysisNotice(device, "새싹이 발아했습니다!", NoticeType.SYSTEM_NOTICE, 2);
+
+            String message = String.format("[%d번 포트] 새싹이 발아했습니다!", portIndex);
+            noticeService.createAnalysisNotice(device, message, NoticeType.SYSTEM_NOTICE, 2);
         }
         if ("growth".equalsIgnoreCase(growthResult) && currentStage == PlantStage.GERMINATION) {
             plant.setPlantStage(PlantStage.MATURE);
             plant.setMaturedAt(LocalDateTime.now());
             plantRepository.save(plant);
-            noticeService.createAnalysisNotice(device, "수확 시기가 되었습니다!", NoticeType.SYSTEM_NOTICE, 1);
+
+            String message = String.format("[%d번 포트] 수확 시기가 되었습니다!", portIndex);
+            noticeService.createAnalysisNotice(device, message, NoticeType.SYSTEM_NOTICE, 1);
         }
     }
 
-    private void handleTomatoStage(Device device, Plant plant,
+    private void handleTomatoStage(Device device, Plant plant, Integer portIndex,
                                    PlantStage currentStage, String growthResult) {
         if ("sprout".equalsIgnoreCase(growthResult) && currentStage == PlantStage.SEED) {
             plant.setPlantStage(PlantStage.GERMINATION);
             if (plant.getGerminatedAt() == null) plant.setGerminatedAt(LocalDateTime.now());
             plantRepository.save(plant);
-            noticeService.createAnalysisNotice(device, "새싹이 발아했습니다!", NoticeType.SYSTEM_NOTICE, 2);
+
+            String message = String.format("[%d번 포트] 새싹이 발아했습니다!", portIndex);
+            noticeService.createAnalysisNotice(device, message, NoticeType.SYSTEM_NOTICE, 2);
         }
         if (growthResult.toLowerCase().matches("level [1-6]") && currentStage == PlantStage.GERMINATION) {
             plant.setPlantStage(PlantStage.MATURE);
             plant.setMaturedAt(LocalDateTime.now());
             plantRepository.save(plant);
-            noticeService.createAnalysisNotice(device, "열매가 발견되었습니다! 수확 시기를 확인하세요.",
-                    NoticeType.SYSTEM_NOTICE, 1);
+
+            String message = String.format("[%d번 포트] 열매가 발견되었습니다! 수확 시기를 확인하세요.", portIndex);
+            noticeService.createAnalysisNotice(device, message, NoticeType.SYSTEM_NOTICE, 1);
         }
     }
 
-    // ── 헬퍼 메서드 ───────────────────────────────────────────────
     private String determineCropType(Plant plant) {
         String name = plant.getSpecies().getName().toLowerCase();
         if (name.contains("상추") || name.contains("lettuce")) return "lettuce";

@@ -24,7 +24,7 @@ public class PlantResponseDto {
     private LocalDateTime germinatedAt;     // 발아 날짜
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime MaturedAt;     // 발아 날짜
+    private LocalDateTime maturedAt;     // 성숙 날짜
 
     private Long speciesId;       // 종 정보 (ID)
     private String speciesName;   // 종 정보 (이름)
@@ -43,6 +43,8 @@ public class PlantResponseDto {
 
     private Integer portIndex;
 
+    private String diseaseResult;
+
     // 다이어리만 포함
     private List<DiaryResponseDto> diaries;
 
@@ -53,19 +55,26 @@ public class PlantResponseDto {
         this.plantStage = plant.getPlantStage();
         this.plantedAt = plant.getPlantedAt();
         this.germinatedAt = plant.getGerminatedAt();
-        this.MaturedAt = plant.getMaturedAt();
+        this.maturedAt = plant.getMaturedAt();
         this.createdAt = plant.getCreatedAt();
         this.updatedAt = plant.getUpdatedAt();
 
-        this.deviceSerial = plant.getDevice().getId();
-        this.deviceNickname = plant.getDevice().getDeviceNickname();
+        // Device가 null인 경우를 대비한 안전한 처리
+        if (plant.getDevice() != null) {
+            this.deviceSerial = plant.getDevice().getId();
+            this.deviceNickname = plant.getDevice().getDeviceNickname();
+        }
 
         this.portIndex = plant.getPortIndex();
 
-        this.diaries = plant.getDiaries()
-                .stream()
-                .map(DiaryResponseDto::new)
-                .collect(Collectors.toList());
+        this.diseaseResult = plant.getDiseaseResult();
+
+        if (plant.getDiaries() != null) {
+            this.diaries = plant.getDiaries()
+                    .stream()
+                    .map(DiaryResponseDto::new)
+                    .collect(Collectors.toList());
+        }
 
         // Species 매핑
         if (plant.getSpecies() != null) {

@@ -49,6 +49,9 @@ public class Plant extends TimeStamped {
     @Column(nullable = false, name = "port_index")
     private Integer portIndex; // 포트 번호(0~7)
 
+    @Column
+    private String diseaseResult; //질병(질병명) 혹은 건강
+
     // Diary와의 1:N 관계
     @OneToMany(mappedBy = "plant", cascade = CascadeType.ALL, orphanRemoval = true)
     List<Diary> diaries = new ArrayList<>();
