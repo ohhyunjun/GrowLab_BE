@@ -25,36 +25,27 @@ public class Photo extends TimeStamped {
     private String fileName;
 
     @Column
-    private String analysisResult; // 예: "level 3", "no_detection"
+    private String growthStageResult; //생육단계 결과
 
     @Column
     private Double confidence; // 예: 0.95 (95% 신뢰도)
 
     @Column
-    private Integer totalDetected; // 총 검출된 객체 수
+    private String diseaseResult; // 질병탐지 결과
 
-    @Column(length = 2000) // JSON 형태로 저장
-    private String detailedResults; // 모든 검출 결과를 JSON으로 저장
+    @Column
+    private Double diseaseConfidence;
 
     // 직접 선언
-    public Photo(Device device, String filePath, String fileName) {
-        this.device = device;
-        this.filePath = filePath;
-        this.fileName = fileName;
-    }
-
-    // 분석 결과 업데이트 (기존 방식 유지 - 호환성)
-    public void updateAnalysis(String result, Double confidence) {
-        this.analysisResult = result;
-        this.confidence = confidence;
-    }
-
-    // 상세 분석 결과 업데이트
-    public void updateDetailedAnalysis(String bestResult, Double bestConfidence,
-                                       Integer totalDetected, String detailedResults) {
-        this.analysisResult = bestResult;
-        this.confidence = bestConfidence;
-        this.totalDetected = totalDetected;
-        this.detailedResults = detailedResults;
+    public Photo(Device device, String filePath, String fileName,
+                 String growthStageResult, Double confidence,
+                 String diseaseResult, Double diseaseConfidence) {
+        this.device            = device;
+        this.filePath          = filePath;
+        this.fileName          = fileName;
+        this.growthStageResult = growthStageResult;
+        this.confidence        = confidence;
+        this.diseaseResult     = diseaseResult;
+        this.diseaseConfidence = diseaseConfidence;
     }
 }
