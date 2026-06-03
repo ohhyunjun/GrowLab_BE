@@ -22,23 +22,26 @@ public interface NoticeRepository extends JpaRepository<Notice, Long> {
     // 읽지 않은 알림 개수 조회
     long countByUserAndIsReadFalse(User user);
 
-    // [보안] 특정 알림을 유저와 함께 조회
+    // 특정 알림을 유저와 함께 조회
     Optional<Notice> findByIdAndUser(Long id, User user);
 
-    // [기존 워터/기타 센서용] 미읽음 동일 센서 존재 여부
+    // 미읽음 동일 센서 존재 여부
     boolean existsByUserAndDeviceSerialAndAdditionalDataContainingAndIsReadFalse(
             User user, String deviceSerial, String sensor);
 
-    // [기존 워터/기타 센서용] 쿨다운 내 동일 센서 존재 여부
+    // 쿨다운 내 동일 센서 존재 여부
     boolean existsByUserAndDeviceSerialAndAdditionalDataContainingAndCreatedAtAfter(
             User user, String deviceSerial, String sensor, LocalDateTime time);
 
     // ─────────────────────────────────────────────────────────────
-    // [추가] 카메라 분석용: 미읽음 특정 알림 타입(예: SENSOR_ALERT) 존재 여부
+    // 카메라 분석용: 미읽음 특정 알림 타입(예: SENSOR_ALERT) 존재 여부
     boolean existsByUserAndDeviceSerialAndNoticeTypeAndIsReadFalse(
             User user, String deviceSerial, NoticeType noticeType);
 
-    // [추가] 카메라 분석용: 쿨다운 내 특정 알림 타입(예: SENSOR_ALERT) 존재 여부
+    // 카메라 분석용: 쿨다운 내 특정 알림 타입(예: SENSOR_ALERT) 존재 여부
     boolean existsByUserAndDeviceSerialAndNoticeTypeAndCreatedAtAfter(
             User user, String deviceSerial, NoticeType noticeType, LocalDateTime time);
+
+    // NoticeRepository.java에 추가
+    void deleteByDeviceSerial(String deviceSerial);
 }
