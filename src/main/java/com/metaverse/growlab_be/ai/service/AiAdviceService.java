@@ -1,6 +1,8 @@
 package com.metaverse.growlab_be.ai.service;
 
 import com.metaverse.growlab_be.ai.dto.AiAdviceRequestDto;
+import com.metaverse.growlab_be.sensor_log.dto.SensorLogRequestDto;
+import com.metaverse.growlab_be.sensor_log.service.SensorLogService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -18,6 +20,12 @@ public class AiAdviceService {
 
     @Value("${openai.api.url}")
     private String apiUrl;
+
+    private final SensorLogService sensorLogService;
+
+    public AiAdviceService(SensorLogService sensorLogService) {
+        this.sensorLogService = sensorLogService;
+    }
 
     public String getAdvice(AiAdviceRequestDto req) {
         String prompt = buildPrompt(req);
@@ -51,6 +59,15 @@ public class AiAdviceService {
     }
 
     private String buildPrompt(AiAdviceRequestDto req) {
+        SensorLogRequestDto sensor = sensorLogService.getLatestData(req.getSerialNumber());
+
+        double temperature = sensor != null && sensor.getTemperature() != null ? sensor.getTemperature()        : 0.0;
+        double humidity    = sensor != null && sensor.getHumidity() != null ? sensor.getHumidity()           : 0.0;
+        double ph          = sensor != null && sensor.getPh() != null ? sensor.getPh()                 : 0.0;
+        double tds         = sensor != null && sensor.getTds() != null ? sensor.getTds()                : 0.0;
+        double waterLevel  = sensor != null && sensor.getWater_level_status() != null
+                ? (sensor.getWater_level_status() ? 100.0 : 0.0) : 0.0;
+
         return String.format("""
         식물 정보:
         - 품종: %s
@@ -93,14 +110,10 @@ public class AiAdviceService {
         - 실제 스마트팜 운영자가 바로 적용 가능한 수준으로 설명
         - 수치가 적정 범위를 벗어나면 원인과 해결 방향 제시
         """,
-                req.getSpeciesName() != null ? req.getSpeciesName() : "상추",
+                req.getSpeciesName()      != null ? req.getSpeciesName()      : "상추",
                 req.getDaysSincePlanted() != null ? req.getDaysSincePlanted() : 0,
-                req.getPlantStage() != null ? req.getPlantStage() : "미등록",
-                req.getTemperature() != null ? req.getTemperature() : 0.0,
-                req.getHumidity() != null ? req.getHumidity() : 0.0,
-                req.getPh() != null ? req.getPh() : 0.0,
-                req.getEc() != null ? req.getEc() : 0.0,
-                req.getWaterLevel() != null ? req.getWaterLevel() : 0.0
+                req.getPlantStage()       != null ? req.getPlantStage()       : "미등록",
+                temperature, humidity, ph, tds, waterLevel
         );
     }
 }

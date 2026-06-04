@@ -141,4 +141,8 @@ public class SensorLogService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 시리얼 번호입니다."));
     }
 
+    public SensorLogRequestDto getLatestData(String serialNumber) {
+        return latestDataMap.get(serialNumber); // 없으면 null
+    }
+
 }
