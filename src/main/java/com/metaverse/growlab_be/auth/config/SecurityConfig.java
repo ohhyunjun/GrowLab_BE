@@ -61,7 +61,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // 1. 인증 없이 접근 가능한 공개 API
-                        .requestMatchers("/api/auth/**", "/api/sample/**", "/api/files/**","/uploads/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/sample/**", "/api/files/**","/uploads/**", "/api/anomalies/**" ).permitAll()
 
                         //Flask 서버 인증 없이 접근 허용
                         .requestMatchers(HttpMethod.POST, "/api/predictions").permitAll()

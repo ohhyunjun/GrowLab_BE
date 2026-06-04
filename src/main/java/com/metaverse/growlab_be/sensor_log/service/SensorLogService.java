@@ -50,6 +50,8 @@ public class SensorLogService {
                 sensorLogRequestDto.getWater_level_status()
         );
         SensorLog savedLog = sensorLogRepository.save(sensorLog);
+        triggerInference(device);
+
         return new SensorLogResponseDto(savedLog);
 
     }
@@ -78,12 +80,11 @@ public class SensorLogService {
         }
     }
 
-    // 추가: 프론트 SSE 연결 수립 (timeout 5분, 프론트에서 자동 재연결)
+    // 추가: 프론트 SSE 연결 수립 (프론트에서 자동 재연결)
     public SseEmitter createEmitter(String serialNumber) {
-        SseEmitter emitter = new SseEmitter(5 * 60 * 1000L);
+        SseEmitter emitter = new SseEmitter(5 * 60 * 1000L); // 5분 그대로
 
         emitterMap.put(serialNumber, emitter);
-
         emitter.onCompletion(() -> emitterMap.remove(serialNumber));
         emitter.onTimeout(()    -> emitterMap.remove(serialNumber));
         emitter.onError((e)     -> emitterMap.remove(serialNumber));
@@ -91,14 +92,14 @@ public class SensorLogService {
         SensorLogRequestDto latest = latestDataMap.get(serialNumber);
         try {
             if (latest != null) {
-                emitter.send(SseEmitter.event().name("sensor").data(Map.of(
-                        "serial_number",      latest.getSerial_number(),
-                        "temperature",        latest.getTemperature(),
-                        "humidity",           latest.getHumidity(),
-                        "ph",                 latest.getPh(),
-                        "tds",               latest.getTds(),
-                        "water_level_status", latest.getWater_level_status()
-                )));
+                Map<String, Object> payload = new HashMap<>();  // Map.of() → HashMap
+                payload.put("serial_number",      latest.getSerial_number());
+                payload.put("temperature",        latest.getTemperature());
+                payload.put("humidity",           latest.getHumidity());
+                payload.put("ph",                 latest.getPh());
+                payload.put("tds",                latest.getTds());
+                payload.put("water_level_status", latest.getWater_level_status());
+                emitter.send(SseEmitter.event().name("sensor").data(payload));
             } else {
                 emitter.send(SseEmitter.event().name("connect").data("connected"));
             }

@@ -2,9 +2,11 @@ package com.metaverse.growlab_be.prediction.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.metaverse.growlab_be.prediction.domain.Prediction;
+import lombok.Getter;
 
 import java.time.LocalDateTime;
 
+@Getter
 public class PredictionResponseDto {
     private Long    id;
     private Integer predictedStage;
