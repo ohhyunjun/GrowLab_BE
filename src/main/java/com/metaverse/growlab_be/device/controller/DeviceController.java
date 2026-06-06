@@ -111,13 +111,18 @@ public class DeviceController {
             @PathVariable String serialNumber,
             @RequestBody LedRequestDto requestDto,
             @AuthenticationPrincipal PrincipalDetails principalDetail) {
-
         try {
             deviceService.controlLed(
                     serialNumber,
-                    requestDto.getLedStatus(),
+                    requestDto,
                     principalDetail.getUser());
-            return ResponseEntity.ok(requestDto.getLedStatus() ? "led가 켜졌습니다." : "led가 꺼졌습니다.");
+            String msg;
+            if (Boolean.TRUE.equals(requestDto.getLedMode())){
+                msg = "LED 스케줄이 설정되었습니다.";
+            }else {
+                msg = Boolean.TRUE.equals(requestDto.getLedStatus()) ?  "LED가 켜졌습니다." : "LED가 꺼졌습니다.";
+            }
+            return ResponseEntity.ok(msg);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (AccessDeniedException e) {

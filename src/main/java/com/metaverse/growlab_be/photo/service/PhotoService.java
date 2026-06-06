@@ -41,57 +41,59 @@ public class PhotoService {
     @Value("${file.upload-dir.camera}")
     private String uploadDir;
 
-    // ── 사진 저장 + YOLO 결과 저장 ───────────────────────────────
-    // 라즈베리파이가 YOLO 추론 후 사진 + 결과를 같이 전송
     @Transactional
-    public PhotoResponseDto savePhoto(PhotoRequestDto requestDto) throws IOException {
-        MultipartFile imageFile    = requestDto.getImageFile();
-        String        serialNumber = requestDto.getSerialNumber();
-
+    public PhotoResponseDto savePhoto(PhotoRequestDto dto) throws IOException {
+        MultipartFile imageFile = dto.getImageFile();
         if (imageFile == null || imageFile.isEmpty()) {
             throw new IllegalArgumentException("이미지 파일이 필요합니다.");
         }
 
-        Device device = deviceRepository.findById(serialNumber)
-                .orElseThrow(() ->
-                        new IllegalArgumentException("등록되지 않은 기기입니다: " + serialNumber));
+        Device device = deviceRepository.findById(dto.getSerialNumber())
+                .orElseThrow(() -> new IllegalArgumentException("등록되지 않은 기기입니다: " + dto.getSerialNumber()));
+
+        if (dto.getPortIndex() == null) {
+            throw new IllegalArgumentException("포트 번호(portIndex)가 누락되었습니다.");
+        }
 
         // 파일 저장
         File directory = new File(uploadDir);
         if (!directory.exists()) directory.mkdirs();
 
         String extension = getFileExtension(imageFile.getOriginalFilename());
-        String fileName  = LocalDateTime.now().format(
-                DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
+        String fileName  = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
                 + "_" + UUID.randomUUID() + "." + extension;
         String filePath  = Paths.get(uploadDir, fileName).toString();
         imageFile.transferTo(new File(filePath));
 
-        Photo photo      = new Photo(device, filePath, fileName);
-        Photo savedPhoto = photoRepository.save(photo);
+        // 분석 결과 resolve
+        String  growthResult  = dto.getGrowthResult()      != null ? dto.getGrowthResult()      : "no_detection";
+        Double  growthConf    = dto.getGrowthConfidence()  != null ? dto.getGrowthConfidence()  : 0.0;
+        String  diseaseResult = dto.getDiseaseResult()     != null ? dto.getDiseaseResult()     : "no_detection";
+        Double  diseaseConf   = dto.getDiseaseConfidence() != null ? dto.getDiseaseConfidence() : 0.0;
 
-        // 라즈베리파이에서 YOLO 추론 결과를 같이 전송받아 바로 저장
-        String  bestResult    = requestDto.getBestResult()    != null ? requestDto.getBestResult()    : "no_detection";
-        Double  avgConfidence = requestDto.getAvgConfidence() != null ? requestDto.getAvgConfidence() : 0.0;
-        Integer totalDetected = requestDto.getTotalDetected() != null ? requestDto.getTotalDetected() : 0;
-        String  detailedJson  = buildDetailedJson(requestDto.getClassSummary(), requestDto.getDetections());
+        // Photo 엔티티 생성 시 portIndex 추가 반영
+        Photo savedPhoto = photoRepository.save(new Photo(
+                device, dto.getPortIndex(), filePath, fileName,
+                growthResult, growthConf,
+                diseaseResult, diseaseConf
+        ));
 
-        savedPhoto.updateDetailedAnalysis(bestResult, avgConfidence, totalDetected, detailedJson);
-
-        // 식물 상태 업데이트 + 알림 생성
+        // Plant 상태 갱신 + 알림
         if (device.getUser() != null) {
-            try {
-                String cropType = determineCropType(device);
-                updatePlantStageAndNotice(device, bestResult, requestDto.getClassSummary(), cropType);
-            } catch (Exception e) {
-                System.err.println("알림 생성 중 오류: " + e.getMessage());
-            }
+            plantRepository.findByDeviceIdAndPortIndex(device.getId(), dto.getPortIndex())
+                    .ifPresent(plant -> {
+                        try {
+                            updatePlantStageAndNotice(device, plant, dto.getPortIndex(), growthResult,
+                                    diseaseResult, determineCropType(plant));
+                        } catch (Exception e) {
+                            System.err.println("식물 상태 업데이트 중 오류: " + e.getMessage());
+                        }
+                    });
         }
 
         return new PhotoResponseDto(savedPhoto);
     }
 
-    // ── 최신 사진 조회 ────────────────────────────────────────────
     @Transactional(readOnly = true)
     public PhotoResponseDto findLatestPhoto() {
         return photoRepository.findTopByOrderByIdDesc()
@@ -99,103 +101,73 @@ public class PhotoService {
                 .orElseThrow(() -> new IllegalArgumentException("저장된 사진이 없습니다."));
     }
 
-    // ── 식물 상태 업데이트 + Notice 생성 ─────────────────────────
-    private void updatePlantStageAndNotice(Device device, String bestResult,
-                                           String classSummaryJson, String cropType) {
-        Optional<Plant> plantOpt = plantRepository.findByDeviceId(device.getId());
-        if (plantOpt.isEmpty()) return;
+    private void updatePlantStageAndNotice(Device device, Plant plant, Integer portIndex,
+                                           String growthResult, String diseaseResult, String cropType) {
 
-        Plant      plant        = plantOpt.get();
-        PlantStage currentStage = plant.getPlantStage();
-
-        // classSummary JSON 파싱
-        Map<String, Integer> classSummary;
-        try {
-            classSummary = new ObjectMapper().readValue(
-                    classSummaryJson != null ? classSummaryJson : "{}",
-                    new TypeReference<Map<String, Integer>>() {}
-            );
-        } catch (Exception e) {
-            classSummary = Map.of();
+        // 1. 질병 상태 업데이트 로직 추가
+        if ("disease".equalsIgnoreCase(diseaseResult)) {
+            plant.setDiseaseResult(diseaseResult);
+            plantRepository.save(plant); // 식물 DB에 질병 상태 반영
+            String message = String.format("[%d번 포트] 식물에 질병이 감지되었습니다. 확인해주세요.", portIndex);
+            noticeService.createAnalysisNotice(device, message, NoticeType.SENSOR_ALERT, 1);
+        } else if ("healthy".equalsIgnoreCase(diseaseResult) || "no_detection".equalsIgnoreCase(diseaseResult)) {
+            plant.setDiseaseResult(null); // 건강할 경우 질병 상태 초기화
+            plantRepository.save(plant);
         }
 
+        // 2. 작물별 생육 단계 처리
         if ("lettuce".equalsIgnoreCase(cropType)) {
-            // 상추: SEED → GERMINATION → MATURE
-            int sproutCount = classSummary.getOrDefault("sprout", 0);
-            if (sproutCount > 0 && currentStage == PlantStage.SEED) {
-                plant.setPlantStage(PlantStage.GERMINATION);
-                if (plant.getGerminatedAt() == null) {
-                    plant.setGerminatedAt(LocalDateTime.now());
-                }
-                plantRepository.save(plant);
-                noticeService.createAnalysisNotice(device, "새싹이 발아했습니다!", NoticeType.SYSTEM_NOTICE, 2);
-            }
-
-            if ("growth".equalsIgnoreCase(bestResult) && currentStage == PlantStage.GERMINATION) {
-                plant.setPlantStage(PlantStage.MATURE);
-                plant.setMaturedAt(LocalDateTime.now());
-                plantRepository.save(plant);
-                noticeService.createAnalysisNotice(device, "수확 시기가 되었습니다!", NoticeType.SYSTEM_NOTICE, 1);
-            }
-
-            if ("disease".equalsIgnoreCase(bestResult)) {
-                noticeService.createAnalysisNotice(device, "식물에 이상이 감지되었습니다. 확인해주세요.",
-                        NoticeType.SENSOR_ALERT, 1);
-            }
-
+            handleLettuceStage(device, plant, portIndex, plant.getPlantStage(), growthResult);
         } else {
-            // 토마토: SEED → GERMINATION → MATURE
-            int sproutCount = classSummary.getOrDefault("sprout", 0);
-            if (sproutCount > 0 && currentStage == PlantStage.SEED) {
-                plant.setPlantStage(PlantStage.GERMINATION);
-                if (plant.getGerminatedAt() == null) {
-                    plant.setGerminatedAt(LocalDateTime.now());
-                }
-                plantRepository.save(plant);
-                noticeService.createAnalysisNotice(device, "새싹이 발아했습니다!",
-                        NoticeType.SYSTEM_NOTICE, 2);
-            }
-
-            int fruitCount = 0;
-            for (int i = 1; i <= 6; i++) {
-                fruitCount += classSummary.getOrDefault("level " + i, 0);
-            }
-            if (fruitCount > 0 && currentStage == PlantStage.GERMINATION) {
-                plant.setPlantStage(PlantStage.MATURE);
-                plant.setMaturedAt(LocalDateTime.now());
-                plantRepository.save(plant);
-                noticeService.createAnalysisNotice(
-                        device, "열매가 발견되었습니다! 수확 시기를 확인하세요.",
-                        NoticeType.SYSTEM_NOTICE, 1);
-            }
+            handleTomatoStage(device, plant, portIndex, plant.getPlantStage(), growthResult);
         }
     }
 
-    // ── 헬퍼 메서드 ───────────────────────────────────────────────
-    private String determineCropType(Device device) {
-        try {
-            return plantRepository.findByDeviceId(device.getId())
-                    .map(plant -> {
-                        String name = plant.getSpecies().getName().toLowerCase();
-                        if (name.contains("상추") || name.contains("lettuce")) return "lettuce";
-                        if (name.contains("토마토") || name.contains("tomato")) return "tomato";
-                        return "tomato";
-                    })
-                    .orElse("tomato");
-        } catch (Exception e) {
-            return "tomato";
+    private void handleLettuceStage(Device device, Plant plant, Integer portIndex,
+                                    PlantStage currentStage, String growthResult) {
+        if ("sprout".equalsIgnoreCase(growthResult) && currentStage == PlantStage.SEED) {
+            plant.setPlantStage(PlantStage.GERMINATION);
+            if (plant.getGerminatedAt() == null) plant.setGerminatedAt(LocalDateTime.now());
+            plantRepository.save(plant);
+
+            String message = String.format("[%d번 포트] 새싹이 발아했습니다!", portIndex);
+            noticeService.createAnalysisNotice(device, message, NoticeType.SYSTEM_NOTICE, 2);
+        }
+        if ("growth".equalsIgnoreCase(growthResult) && currentStage == PlantStage.GERMINATION) {
+            plant.setPlantStage(PlantStage.MATURE);
+            plant.setMaturedAt(LocalDateTime.now());
+            plantRepository.save(plant);
+
+            String message = String.format("[%d번 포트] 수확 시기가 되었습니다!", portIndex);
+            noticeService.createAnalysisNotice(device, message, NoticeType.SYSTEM_NOTICE, 1);
         }
     }
 
-    private String buildDetailedJson(String classSummary, String detections) {
-        try {
-            return new ObjectMapper().writeValueAsString(Map.of(
-                    "classSummary", classSummary != null ? classSummary : "{}",
-                    "detections",   detections   != null ? detections   : "[]"
-            ));
-        } catch (Exception e) {
-            return "{}";
+    private void handleTomatoStage(Device device, Plant plant, Integer portIndex,
+                                   PlantStage currentStage, String growthResult) {
+        if ("sprout".equalsIgnoreCase(growthResult) && currentStage == PlantStage.SEED) {
+            plant.setPlantStage(PlantStage.GERMINATION);
+            if (plant.getGerminatedAt() == null) plant.setGerminatedAt(LocalDateTime.now());
+            plantRepository.save(plant);
+
+            String message = String.format("[%d번 포트] 새싹이 발아했습니다!", portIndex);
+            noticeService.createAnalysisNotice(device, message, NoticeType.SYSTEM_NOTICE, 2);
         }
+        if (growthResult.toLowerCase().matches("level [1-6]") && currentStage == PlantStage.GERMINATION) {
+            plant.setPlantStage(PlantStage.MATURE);
+            plant.setMaturedAt(LocalDateTime.now());
+            plantRepository.save(plant);
+
+            String message = String.format("[%d번 포트] 열매가 발견되었습니다! 수확 시기를 확인하세요.", portIndex);
+            noticeService.createAnalysisNotice(device, message, NoticeType.SYSTEM_NOTICE, 1);
+        }
+    }
+
+    private String determineCropType(Plant plant) {
+        String name = plant.getSpecies().getName().toLowerCase();
+        if (name.contains("상추") || name.contains("lettuce")) return "lettuce";
+        if (name.contains("토마토") || name.contains("tomato")) return "tomato";
+        return "tomato";
     }
 
     private String getFileExtension(String fileName) {

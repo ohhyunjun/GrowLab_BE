@@ -4,6 +4,7 @@ import com.metaverse.growlab_be.common.domain.TimeStamped;
 import com.metaverse.growlab_be.device.domain.Device;
 import com.metaverse.growlab_be.diary.domain.Diary;
 import com.metaverse.growlab_be.plant.dto.PlantRequestDto;
+import com.metaverse.growlab_be.prediction.domain.Prediction;
 import com.metaverse.growlab_be.species.domain.Species;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -48,6 +49,12 @@ public class Plant extends TimeStamped {
 
     @Column(nullable = false, name = "port_index")
     private Integer portIndex; // 포트 번호(0~7)
+
+    @Column
+    private String diseaseResult; //질병(질병명) 혹은 건강
+
+    @OneToMany(mappedBy = "plant", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Prediction> predictions = new ArrayList<>();
 
     // Diary와의 1:N 관계
     @OneToMany(mappedBy = "plant", cascade = CascadeType.ALL, orphanRemoval = true)

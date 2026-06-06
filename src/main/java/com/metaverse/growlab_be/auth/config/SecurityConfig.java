@@ -15,7 +15,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -62,22 +61,25 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // 1. 인증 없이 접근 가능한 공개 API
-                        .requestMatchers("/api/auth/**", "/api/sample/**", "/api/files/**","/uploads/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/sample/**", "/api/files/**","/uploads/**", "/api/anomalies/**" ).permitAll()
 
-                        // 농산물 코드 조회 허용 추가 (인증 없이 통과)
-                        .requestMatchers(HttpMethod.GET,"/api/crops/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/crops/**").permitAll()
+                        //Flask 서버 인증 없이 접근 허용
+                        .requestMatchers(HttpMethod.POST, "/api/predictions").permitAll()
 
                         // 농산물 가격 조회 허용 추가 (GET 요청만 인증 없이 통과)
                         .requestMatchers(HttpMethod.GET, "/api/prices/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/prices/**").permitAll()
 
                         // 라즈베리파이 -> 서버 전송 (JWT 없이 시리얼 번호로만 인증)
                         .requestMatchers(HttpMethod.POST, "/api/sensor_logs/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/photos").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/notices/alert").permitAll()
 
-                        // 2. 게시글 '조회'는 로그인 없이도 가능하게 (필요 시 permitAll로 변경 가능)
+                        // 실시간 센서값 수신 + SSE 구독
+                        .requestMatchers(HttpMethod.POST, "/api/sensor_logs/realtime").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/notices/alert").permitAll()
+                        .requestMatchers(HttpMethod.GET,  "/api/sensor_logs/stream/**").permitAll()
+
+                        // 2. 게시글 '조회'는 로그인 없이도 가능
                         .requestMatchers(HttpMethod.GET, "/api/articles/**").permitAll()
 
                         // 3. 게시글 등록(POST), 수정(PUT), 삭제(DELETE) 권한 명시
@@ -94,7 +96,6 @@ public class SecurityConfig {
                         // 5. 기기 관리 및 나머지 요청
                         .requestMatchers("/api/devices/**").authenticated()
                         .requestMatchers("/api/plants/**").authenticated()
-                        .requestMatchers("/api/prices/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 // 커스텀한 JWT 필터를 UsernamePasswordAuthenticationFilter 전에 추가

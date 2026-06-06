@@ -8,6 +8,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalTime;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,6 +33,15 @@ public class Device extends TimeStamped {
     @Column(name="led_status")
     private Boolean ledStatus = false;
 
+    @Column(name = "led_mode")
+    private Boolean ledMode = false; //true = auto, false = notauto
+
+    @Column(name = "led_on_time")
+    private LocalTime ledOnTime;
+
+    @Column(name = "led_off_time")
+    private LocalTime ledOffTime;
+
     @Column(name = "photo_interval")
     private Integer photoInterval = 12;
 
@@ -52,6 +63,5 @@ public class Device extends TimeStamped {
         this.status = false;
         this.ledStatus = false;
         this.photoInterval = 12;
-        this.portStatus = "00000000";
     }
 }

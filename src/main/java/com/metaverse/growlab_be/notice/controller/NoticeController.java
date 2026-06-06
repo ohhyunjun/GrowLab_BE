@@ -1,6 +1,7 @@
 package com.metaverse.growlab_be.notice.controller;
 
 import com.metaverse.growlab_be.auth.domain.PrincipalDetails;
+import com.metaverse.growlab_be.notice.dto.NoticeRequestDto;
 import com.metaverse.growlab_be.notice.dto.NoticeResponseDto;
 import com.metaverse.growlab_be.notice.service.NoticeService;
 import lombok.RequiredArgsConstructor;
@@ -90,5 +91,11 @@ public class NoticeController {
             // 서버 내부 오류
             return ResponseEntity.internalServerError().body("알림 삭제 중 오류가 발생했습니다.");
         }
+    }
+
+    @PostMapping("/alert")
+    public ResponseEntity<Void> receiveAlert(@RequestBody NoticeRequestDto dto) {
+        noticeService.createAlertFromRpi(dto);
+        return ResponseEntity.ok().build();
     }
 }

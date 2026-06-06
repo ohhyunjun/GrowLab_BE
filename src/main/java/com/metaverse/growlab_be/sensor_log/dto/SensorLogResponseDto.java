@@ -22,8 +22,8 @@ public class SensorLogResponseDto {
     public SensorLogResponseDto(SensorLog sensorLog) {
         this.id = sensorLog.getId();
 
-        if (sensorLog.getSerialNumber() != null) {
-            this.serial_number = sensorLog.getSerialNumber().getId();
+        if (sensorLog.getDevice() != null) {
+            this.serial_number = sensorLog.getDevice().getId();
         }
 
         this.temperature = sensorLog.getTemperature();

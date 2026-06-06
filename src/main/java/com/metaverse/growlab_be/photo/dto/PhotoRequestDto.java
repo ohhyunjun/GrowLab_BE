@@ -7,12 +7,14 @@ import org.springframework.web.multipart.MultipartFile;
 @Getter
 @Setter // @ModelAttribute는 필드에 값을 할당하기 위해 Setter가 필요합니다.
 public class PhotoRequestDto {
-    private String bestResult;
-    private Double avgConfidence;
-    private Integer totalDetected;
-    private String classSummary;
-    private String detections;
     private MultipartFile imageFile;
     private String serialNumber;
+    private Integer portIndex;
+
+    private String growthResult;      // "sprout", "growth", "no_detection"
+    private Double growthConfidence;
+
+    private String diseaseResult;     // "healthy", "disease", 질병명, "no_detection"
+    private Double diseaseConfidence;
 
 }

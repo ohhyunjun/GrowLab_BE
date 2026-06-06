@@ -16,4 +16,7 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
     List<Photo> findByDeviceOrderByCreatedAtDesc(Device device);
 
     Optional<Photo> findTopByDeviceIdOrderByCreatedAtDesc(String deviceId);
+
+    List<Photo> findByDevice(Device device);
+    void deleteByDevice(Device device);
 }
