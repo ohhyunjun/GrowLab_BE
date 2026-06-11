@@ -28,7 +28,10 @@ public class FileService {
         }
 
         String originalFileName = multipartFile.getOriginalFilename();
-        String storedFileName = java.util.UUID.randomUUID() + "_" + originalFileName;
+        String extension = (originalFileName != null && originalFileName.contains("."))
+                ? originalFileName.substring(originalFileName.lastIndexOf("."))
+                : ".jpg";
+        String storedFileName = java.util.UUID.randomUUID().toString() + extension;
 
         Path uploadPath = Path.of(uploadDir).toAbsolutePath().normalize();
 
