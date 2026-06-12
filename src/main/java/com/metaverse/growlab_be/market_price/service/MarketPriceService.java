@@ -38,20 +38,29 @@ public class MarketPriceService {
 
     // ─── 조회 ────────────────────────────────────────────────
 
-    // 특정 품목/품종 최신 가격 1건
-    public MarketPrice getLatestPrice(String itemCode, String kindCode) {
+    /**
+     * 특정 품목/품종/거래유형 최신 가격 1건
+     */
+    public MarketPrice getLatestPrice(String itemCode, String kindCode,
+                                      MarketPrice.MarketType marketType) {
         return marketPriceRepository
-                .findFirstByItemCodeAndKindCodeOrderByPriceDateDesc(itemCode, kindCode)
+                .findFirstByItemCodeAndKindCodeAndMarketTypeOrderByPriceDateDesc(
+                        itemCode, kindCode, marketType)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "가격 데이터가 없습니다. itemCode=" + itemCode + ", kindCode=" + kindCode));
+                        "가격 데이터가 없습니다. itemCode=" + itemCode
+                                + ", kindCode=" + kindCode
+                                + ", marketType=" + marketType));
     }
 
-    // 특정 품목/품종 최근 7일 가격 내역
-    public List<MarketPrice> getWeeklyPrices(String itemCode, String kindCode) {
+    /**
+     * 특정 품목/품종/거래유형 최근 7일 가격 내역
+     */
+    public List<MarketPrice> getWeeklyPrices(String itemCode, String kindCode,
+                                             MarketPrice.MarketType marketType) {
         LocalDate startDate = LocalDate.now().minusDays(6);
         return marketPriceRepository
-                .findByItemCodeAndKindCodeAndPriceDateGreaterThanEqualOrderByPriceDateAsc(
-                        itemCode, kindCode, startDate);
+                .findByItemCodeAndKindCodeAndMarketTypeAndPriceDateGreaterThanEqualOrderByPriceDateAsc(
+                        itemCode, kindCode, marketType, startDate);
     }
 
     // ─── 수집 ────────────────────────────────────────────────
@@ -71,7 +80,7 @@ public class MarketPriceService {
 
         for (CropCode cropCode : cropCodes) {
             try {
-                int retailSaved = fetchAndSave(cropCode, MarketPrice.MarketType.RETAIL);
+                int retailSaved    = fetchAndSave(cropCode, MarketPrice.MarketType.RETAIL);
                 int wholesaleSaved = fetchAndSave(cropCode, MarketPrice.MarketType.WHOLESALE);
                 totalSaved += retailSaved + wholesaleSaved;
             } catch (Exception e) {
@@ -83,7 +92,6 @@ public class MarketPriceService {
         log.info("[MarketPrice] 가격 수집 완료 - 총 {}건 저장", totalSaved);
     }
 
-    // ✅ 추가 - 날짜 범위 수집 (초기 수집용)
     @Transactional
     public void fetchAndSaveByDateRange(LocalDate startDate, LocalDate endDate) {
         log.info("[MarketPrice] 날짜 범위 수집 시작 - {} ~ {}", startDate, endDate);
@@ -99,10 +107,8 @@ public class MarketPriceService {
 
         for (CropCode cropCode : cropCodes) {
             try {
-                int retailSaved = fetchAndSaveRange(cropCode,
-                        MarketPrice.MarketType.RETAIL, startDate, endDate);  // ✅ 추가
-                int wholesaleSaved = fetchAndSaveRange(cropCode,
-                        MarketPrice.MarketType.WHOLESALE, startDate, endDate);  // ✅ 추가
+                int retailSaved    = fetchAndSaveRange(cropCode, MarketPrice.MarketType.RETAIL, startDate, endDate);
+                int wholesaleSaved = fetchAndSaveRange(cropCode, MarketPrice.MarketType.WHOLESALE, startDate, endDate);
                 totalSaved += retailSaved + wholesaleSaved;
             } catch (Exception e) {
                 log.error("[MarketPrice] 수집 실패 - itemCode: {}, kindCode: {}, error: {}",
@@ -126,7 +132,7 @@ public class MarketPriceService {
                 .marketType(marketType)
                 .build();
 
-        return execute(request, cropCode, marketType);  // ✅ 수정 - 공통 메서드로 분리
+        return execute(request, cropCode, marketType);
     }
 
     private int fetchAndSaveRange(CropCode cropCode, MarketPrice.MarketType marketType,
@@ -144,7 +150,6 @@ public class MarketPriceService {
         return execute(request, cropCode, marketType);
     }
 
-    // ✅ 추가 - fetchAndSave/fetchAndSaveRange 공통 로직
     private int execute(MarketPriceRequestDto request, CropCode cropCode,
                         MarketPrice.MarketType marketType) {
         KamisPriceResponseDto response = callKamisApi(request);
@@ -160,8 +165,7 @@ public class MarketPriceService {
         }
         if (!response.isSuccess()) {
             log.warn("[MarketPrice] API 실패 - errorCode={}",
-                    response.getData() != null
-                            ? response.getData().getErrorCode() : "null");
+                    response.getData() != null ? response.getData().getErrorCode() : "null");
             return 0;
         }
         if (response.getData() == null || response.getData().getItem() == null) {
@@ -205,7 +209,7 @@ public class MarketPriceService {
                             .queryParam("p_convert_kg_yn", request.getConvertKgYn())
                             .build())
                     .retrieve()
-                    .bodyToMono(KamisPriceResponseDto.class)  // ← 변경
+                    .bodyToMono(KamisPriceResponseDto.class)
                     .block();
         } catch (Exception e) {
             log.error("[MarketPrice] API 호출 실패 - itemCode: {}, error: {}",
@@ -249,26 +253,23 @@ public class MarketPriceService {
                 .kindCode(cropCode.getKindCode())
                 .kindName(cropCode.getKindName())
                 .rankCode(null)
-                .regionCode(item.getCountyname())   // TODO: 추후 regionCode로 변경
+                .regionCode(item.getCountyname())
                 .regionName(item.getCountyname())
-                .marketCode(item.getMarketname())   // TODO: 추후 marketCode로 변경
+                .marketCode(item.getMarketname())
                 .marketName(item.getMarketname())
                 .price(price)
                 .unit(
-                marketType == MarketPrice.MarketType.RETAIL
-                        ? cropCode.getRetailUnit()
-                        : cropCode.getWholesaleUnit()
+                        marketType == MarketPrice.MarketType.RETAIL
+                                ? cropCode.getRetailUnit()
+                                : cropCode.getWholesaleUnit()
                 )
                 .priceDate(priceDate)
                 .marketType(marketType)
                 .build();
     }
 
-    // 가격 파싱 (콤마 제거, 안전)
     private Integer parsePrice(String priceStr) {
-        if (priceStr == null || priceStr.isBlank() || priceStr.equals("-")) {
-            return null;
-        }
+        if (priceStr == null || priceStr.isBlank() || priceStr.equals("-")) return null;
         try {
             return Integer.parseInt(priceStr.replace(",", "").trim());
         } catch (NumberFormatException e) {
@@ -277,7 +278,6 @@ public class MarketPriceService {
         }
     }
 
-    // 날짜 파싱 (yyyy + MM/dd → LocalDate)
     private LocalDate parseDate(String yyyy, String regday) {
         if (yyyy == null || regday == null) return null;
         try {
