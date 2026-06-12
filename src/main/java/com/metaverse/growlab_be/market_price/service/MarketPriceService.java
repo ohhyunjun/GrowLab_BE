@@ -38,20 +38,21 @@ public class MarketPriceService {
 
     // ─── 조회 ────────────────────────────────────────────────
 
-    // 특정 품목/품종 최신 가격 1건
+    // 최신 소매가 1건
     public MarketPrice getLatestPrice(String itemCode, String kindCode) {
         return marketPriceRepository
-                .findFirstByItemCodeAndKindCodeOrderByPriceDateDesc(itemCode, kindCode)
+                .findFirstByItemCodeAndKindCodeAndMarketTypeOrderByPriceDateDesc(
+                        itemCode, kindCode, MarketPrice.MarketType.RETAIL)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "가격 데이터가 없습니다. itemCode=" + itemCode + ", kindCode=" + kindCode));
     }
 
-    // 특정 품목/품종 최근 7일 가격 내역
+    // 최근 7일 소매가
     public List<MarketPrice> getWeeklyPrices(String itemCode, String kindCode) {
         LocalDate startDate = LocalDate.now().minusDays(6);
         return marketPriceRepository
-                .findByItemCodeAndKindCodeAndPriceDateGreaterThanEqualOrderByPriceDateAsc(
-                        itemCode, kindCode, startDate);
+                .findByItemCodeAndKindCodeAndMarketTypeAndPriceDateGreaterThanEqualOrderByPriceDateAsc(
+                        itemCode, kindCode, MarketPrice.MarketType.RETAIL, startDate);
     }
 
     // ─── 수집 ────────────────────────────────────────────────

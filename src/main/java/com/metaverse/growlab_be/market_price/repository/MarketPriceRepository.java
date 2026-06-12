@@ -9,13 +9,11 @@ import java.util.Optional;
 
 public interface MarketPriceRepository extends JpaRepository<MarketPrice, Long> {
 
-    // 1. 특정 품목/품종의 가장 최신 가격 1건
-    Optional<MarketPrice> findFirstByItemCodeAndKindCodeOrderByPriceDateDesc(
-            String itemCode, String kindCode);
+    Optional<MarketPrice> findFirstByItemCodeAndKindCodeAndMarketTypeOrderByPriceDateDesc(
+            String itemCode, String kindCode, MarketPrice.MarketType marketType);
 
-    // 2. 특정 품목/품종의 특정 날짜 이후 가격 내역 (오름차순)
-    List<MarketPrice> findByItemCodeAndKindCodeAndPriceDateGreaterThanEqualOrderByPriceDateAsc(
-            String itemCode, String kindCode, LocalDate startDate);
+    List<MarketPrice> findByItemCodeAndKindCodeAndMarketTypeAndPriceDateGreaterThanEqualOrderByPriceDateAsc(
+            String itemCode, String kindCode, MarketPrice.MarketType marketType, LocalDate startDate);
 
     // 3. 중복 저장 방지 (rank_code 제거)
     boolean existsByItemCodeAndKindCodeAndPriceDateAndMarketTypeAndRegionCodeAndMarketCode(
