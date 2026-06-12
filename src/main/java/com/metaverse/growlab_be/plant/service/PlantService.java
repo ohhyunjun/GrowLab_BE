@@ -14,7 +14,6 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-
 import java.util.List;
 
 @Service
@@ -30,15 +29,21 @@ public class PlantService {
     public PlantResponseDto createPlant(PlantRequestDto plantRequestDto, User user) {
         Device device = findDeviceOwnedByUser(plantRequestDto.getSerialNumber(), user);
 
-        // '해당 포트'에 이미 식물이 있는지 확인
+        // 해당 포트에 이미 식물이 있는지 확인
         if (plantRepository.existsByDeviceIdAndPortIndex(device.getId(), plantRequestDto.getPortIndex())) {
             throw new IllegalArgumentException(plantRequestDto.getPortIndex() + "번 포트에는 이미 식물이 등록되어 있습니다.");
         }
 
         Species species = findSpeciesById(plantRequestDto.getSpeciesId());
 
-        Plant plant = new Plant(plantRequestDto, species, device);
+        // ✅ 기기에 대표 품종이 설정되어 있으면 일치 여부 검증
+        if (device.getSpecies() != null &&
+                !device.getSpecies().getId().equals(species.getId())) {
+            throw new IllegalArgumentException(
+                    "이 기기는 '" + device.getSpecies().getName() + "' 품종만 등록할 수 있습니다.");
+        }
 
+        Plant plant = new Plant(plantRequestDto, species, device);
         Plant savedPlant = plantRepository.save(plant);
         return new PlantResponseDto(savedPlant);
     }
@@ -60,9 +65,7 @@ public class PlantService {
         Plant plant = findPlantOwnedByUser(plantId, user);
         Species species = findSpeciesById(plantRequestDto.getSpeciesId());
         plant.setSpecies(species);
-
         plant.update(plantRequestDto);
-
         return new PlantResponseDto(plant);
     }
 
@@ -70,19 +73,14 @@ public class PlantService {
     public PlantResponseDto patchPlant(Long plantId, PlantRequestDto plantRequestDto, User user) {
         Plant plant = findPlantOwnedByUser(plantId, user);
 
-        if (plantRequestDto.getName() != null) {
-            plant.setName(plantRequestDto.getName());
-        }
+        if (plantRequestDto.getName() != null) plant.setName(plantRequestDto.getName());
         if (plantRequestDto.getSpeciesId() != null) {
             Species species = findSpeciesById(plantRequestDto.getSpeciesId());
             plant.setSpecies(species);
         }
-        if (plantRequestDto.getPlantStage() != null) {
-            plant.setPlantStage(plantRequestDto.getPlantStage());
-        }
-        if (plantRequestDto.getPlantedAt() != null) {
-            plant.setPlantedAt(plantRequestDto.getPlantedAt());
-        }
+        if (plantRequestDto.getPlantStage() != null) plant.setPlantStage(plantRequestDto.getPlantStage());
+        if (plantRequestDto.getPlantedAt()  != null) plant.setPlantedAt(plantRequestDto.getPlantedAt());
+
         return new PlantResponseDto(plant);
     }
 
@@ -92,7 +90,7 @@ public class PlantService {
         plantRepository.delete(plant);
     }
 
-    // 헬퍼 메서드들 (이하 동일)
+    // 헬퍼
     private Plant findPlantOwnedByUser(Long plantId, User user) {
         return plantRepository.findByIdAndUserId(plantId, user.getId())
                 .orElseThrow(() -> new IllegalArgumentException("해당 식물을 찾을 수 없거나 접근 권한이 없습니다."));
@@ -106,7 +104,6 @@ public class PlantService {
     private Device findDeviceOwnedByUser(String deviceSerial, User user) {
         Device device = deviceRepository.findById(deviceSerial)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 디바이스입니다: " + deviceSerial));
-
         if (device.getUser() == null || !device.getUser().getId().equals(user.getId())) {
             throw new AccessDeniedException("해당 디바이스에 대한 권한이 없습니다.");
         }

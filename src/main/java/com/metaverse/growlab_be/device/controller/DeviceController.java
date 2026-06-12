@@ -19,26 +19,25 @@ import java.util.List;
 @RequestMapping("api/devices")
 @RequiredArgsConstructor
 public class DeviceController {
+
     private final DeviceService deviceService;
 
     @GetMapping
     public ResponseEntity<List<DeviceResponseDto>> getUserDevices(
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
         User currentUser = principalDetails.getUser();
-        List<DeviceResponseDto> devices = deviceService.getUserDevices(currentUser);
-        return ResponseEntity.ok(devices);
+        return ResponseEntity.ok(deviceService.getUserDevices(currentUser));
     }
 
     @PostMapping("/register")
     public ResponseEntity<String> registerDevice(
             @Valid @RequestBody DeviceCreateRequestDto requestDto,
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
-
         try {
-            User currentUser = principalDetails.getUser();
-
-            deviceService.registerDevice(requestDto.getSerialNumber(), requestDto.getDeviceNickname(),currentUser);
-
+            deviceService.registerDevice(
+                    requestDto.getSerialNumber(),
+                    requestDto.getDeviceNickname(),
+                    principalDetails.getUser());
             return ResponseEntity.ok("기기가 성공적으로 등록되었습니다.");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
@@ -58,14 +57,12 @@ public class DeviceController {
         }
     }
 
-    // 일반 유저 삭제 (소유권 해제)
     @DeleteMapping("/{serialNumber}")
     public ResponseEntity<String> deleteDevice(
             @PathVariable String serialNumber,
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
         try {
-            User currentUser = principalDetails.getUser();
-            deviceService.deleteDevice(serialNumber, currentUser);
+            deviceService.deleteDevice(serialNumber, principalDetails.getUser());
             return ResponseEntity.ok("기기가 성공적으로 해제되었습니다.");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
@@ -74,19 +71,17 @@ public class DeviceController {
         }
     }
 
-    // Admin 전용 완전 삭제
     @DeleteMapping("/admin/{serialNumber}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> deleteDeviceByAdmin(@PathVariable String serialNumber) {
         try {
             deviceService.deleteDeviceByAdmin(serialNumber);
-            return ResponseEntity.status(HttpStatus.OK).body("기기가 완전히 삭제되었습니다.");
+            return ResponseEntity.ok("기기가 완전히 삭제되었습니다.");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         }
     }
 
-    //사진 촬영 주기 설정
     @PatchMapping("/{serialNumber}/photo_interval")
     public ResponseEntity<String> updatePhotoInterval(
             @PathVariable String serialNumber,
@@ -97,8 +92,7 @@ public class DeviceController {
                     serialNumber,
                     requestDto.getPhotoInterval(),
                     principalDetails.getUser());
-            return ResponseEntity.ok(
-                    requestDto.getPhotoInterval() + "시간마다 촬영으로 설정되었습니다.");
+            return ResponseEntity.ok(requestDto.getPhotoInterval() + "시간마다 촬영으로 설정되었습니다.");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (AccessDeniedException e) {
@@ -110,18 +104,12 @@ public class DeviceController {
     public ResponseEntity<String> updateLed(
             @PathVariable String serialNumber,
             @RequestBody LedRequestDto requestDto,
-            @AuthenticationPrincipal PrincipalDetails principalDetail) {
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
         try {
-            deviceService.controlLed(
-                    serialNumber,
-                    requestDto,
-                    principalDetail.getUser());
-            String msg;
-            if (Boolean.TRUE.equals(requestDto.getLedMode())){
-                msg = "LED 스케줄이 설정되었습니다.";
-            }else {
-                msg = Boolean.TRUE.equals(requestDto.getLedStatus()) ?  "LED가 켜졌습니다." : "LED가 꺼졌습니다.";
-            }
+            deviceService.controlLed(serialNumber, requestDto, principalDetails.getUser());
+            String msg = Boolean.TRUE.equals(requestDto.getLedMode())
+                    ? "LED 스케줄이 설정되었습니다."
+                    : Boolean.TRUE.equals(requestDto.getLedStatus()) ? "LED가 켜졌습니다." : "LED가 꺼졌습니다.";
             return ResponseEntity.ok(msg);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
@@ -135,20 +123,36 @@ public class DeviceController {
             @PathVariable String serialNumber,
             @RequestBody PortStatusRequestDto requestDto,
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
-
         try {
             deviceService.updatePortStatus(
                     serialNumber,
                     requestDto.getPortIndex(),
                     requestDto.getStatus(),
                     principalDetails.getUser());
-
-            return ResponseEntity.ok(
-                    requestDto.getPortIndex() + "번 포트 상태 변경 완료");
-
+            return ResponseEntity.ok(requestDto.getPortIndex() + "번 포트 상태 변경 완료");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        }
+    }
 
+    // ✅ 기기 대표 품종 설정/변경 - PATCH /api/devices/{serialNumber}/species
+    @PatchMapping("/{serialNumber}/species")
+    public ResponseEntity<?> updateDeviceSpecies(
+            @PathVariable String serialNumber,
+            @Valid @RequestBody DeviceSpeciesRequestDto requestDto,
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+        try {
+            DeviceResponseDto result = deviceService.updateDeviceSpecies(
+                    serialNumber,
+                    requestDto.getSpeciesId(),
+                    principalDetails.getUser());
+            return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (AccessDeniedException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
         }
