@@ -39,26 +39,25 @@ public class AuthController {
     @PostMapping("login")
     public ResponseEntity<AuthResponseDto> authenticateUser(@Valid @RequestBody LoginRequestDto loginRequestDto) {
         try {
-            // 인증 객체 생성
-            // Authentication Manager를 통해서 username, password 기반으로 인증 수행 지시
-            // loadUserByUsername과 passwordEncoder.matches()가 내부적으로 실행
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
                             loginRequestDto.getUsername(),
                             loginRequestDto.getPassword()
                     )
             );
-            // 결과물 인증 객체 (UserDetails == Principal)
-            // @AuthenticationPrincipal 애너테이션이 내부적으로 (UserDetails) 형변환을 해줌
-            PrincipalDetails principalDetails = (PrincipalDetails) authentication.getPrincipal(); // 수정
-            // JWT 토큰 생성 (accessToken = jwtToken)
+            PrincipalDetails principalDetails = (PrincipalDetails) authentication.getPrincipal();
             String accessToken = jwtUtil.generateToken(principalDetails);
 
-            return ResponseEntity.ok(new AuthResponseDto(principalDetails.getUser().getId(), principalDetails.getUsername(), accessToken));
+            return ResponseEntity.ok(new AuthResponseDto(
+                    principalDetails.getUser().getId(),
+                    principalDetails.getUsername(),
+                    accessToken,
+                    principalDetails.getUser().getUserRole().name()
+            ));
         } catch (BadCredentialsException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new AuthResponseDto(null, null, null));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new AuthResponseDto(null, null, null, null));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new AuthResponseDto(null, null, null));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new AuthResponseDto(null, null, null, null));
         }
     }
 
