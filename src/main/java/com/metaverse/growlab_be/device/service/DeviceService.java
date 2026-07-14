@@ -55,6 +55,18 @@ public class DeviceService {
                 .toList();
     }
 
+    // ✅ 관리자용 - 전체 기기(시리얼) 목록 조회 (배정/미배정 모두 포함)
+    public List<AdminDeviceResponseDto> getAllDevicesForAdmin() {
+        List<Device> devices = deviceRepository.findAll();
+        return devices.stream()
+                .sorted(Comparator.comparing(
+                        Device::getCreatedAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())
+                ))
+                .map(AdminDeviceResponseDto::new)
+                .toList();
+    }
+
     @Transactional
     public void registerDevice(String serialNumber, String deviceNickname, User user) {
         Device device = deviceRepository.findById(serialNumber)
