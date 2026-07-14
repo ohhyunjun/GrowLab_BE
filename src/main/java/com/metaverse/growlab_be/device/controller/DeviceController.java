@@ -29,6 +29,13 @@ public class DeviceController {
         return ResponseEntity.ok(deviceService.getUserDevices(currentUser));
     }
 
+    // ✅ 관리자용 - 전체 기기(시리얼) 목록 조회 (배정/미배정 모두)
+    @GetMapping("/admin")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<AdminDeviceResponseDto>> getAllDevicesForAdmin() {
+        return ResponseEntity.ok(deviceService.getAllDevicesForAdmin());
+    }
+
     @PostMapping("/register")
     public ResponseEntity<String> registerDevice(
             @Valid @RequestBody DeviceCreateRequestDto requestDto,
