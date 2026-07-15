@@ -38,7 +38,6 @@ public class ArticleService {
         Article newArticle = new Article(articleRequestDto, logginedUser);
         Article savedArticle = articleRepository.save(newArticle);
 
-        // 여러 장의 이미지 업로드 처리
         if (images != null && !images.isEmpty()) {
             for (MultipartFile imgFile : images) {
                 if (!imgFile.isEmpty()) {
@@ -62,7 +61,6 @@ public class ArticleService {
         });
     }
 
-    //인용쌤 코드에서 gpt한테 댓글 좋아요만 빼고 게시글 좋아요만 남겨달라고 해서 만듦
     @Transactional
     public ArticleResponseDto getArticleById(Long articleId, PrincipalDetails principalDetails,
                                              HttpServletRequest request, HttpServletResponse response) {
@@ -93,20 +91,16 @@ public class ArticleService {
     public ArticleResponseDto updateArticle(Long articleId, ArticleRequestDto articleRequestDto,
                                             PrincipalDetails principalDetails, List<MultipartFile> images) {
         Article foundArticle = getValidArticleById(articleId);
-        //  작성자 본인 확인 (수정 권한 체크 추가)
         if (!foundArticle.getUser().getId().equals(principalDetails.user().getId())) {
             throw new IllegalArgumentException("본인의 게시글만 수정할 수 있습니다.");
         }
-        // 텍스트 내용 업데이트
         foundArticle.update(articleRequestDto);
 
-        // 이미지 삭제
         if (articleRequestDto.getDeleteImageIds() != null && !articleRequestDto.getDeleteImageIds().isEmpty()) {
             foundArticle.getImages().removeIf(image ->
                     articleRequestDto.getDeleteImageIds().contains(image.getId())
             );
         }
-        // 이미지 업데이트
         if (images != null && !images.isEmpty()) {
             for (MultipartFile imgFile : images) {
                 if (!imgFile.isEmpty()) {
@@ -119,8 +113,19 @@ public class ArticleService {
         return new ArticleResponseDto(foundArticle);
     }
 
+    // ✅ 일반 삭제 - 본인 게시글만 삭제 가능
     @Transactional
-    public void deleteArticle(Long articleId) {
+    public void deleteArticle(Long articleId, PrincipalDetails principalDetails) {
+        Article foundArticle = getValidArticleById(articleId);
+        if (!foundArticle.getUser().getId().equals(principalDetails.user().getId())) {
+            throw new IllegalArgumentException("본인의 게시글만 삭제할 수 있습니다.");
+        }
+        articleRepository.delete(foundArticle);
+    }
+
+    // ✅ (관리자) 소유자 상관없이 강제 삭제
+    @Transactional
+    public void deleteArticleByAdmin(Long articleId) {
         Article foundArticle = getValidArticleById(articleId);
         articleRepository.delete(foundArticle);
     }
@@ -146,7 +151,6 @@ public class ArticleService {
         return articleResponseDtos;
     }
 
-    // 조회수 중복 방지를 위한 쿠키 처리 로직 (Service 내부에서만 사용)
     private void updateViewCountWithCookie(Article article, HttpServletRequest request, HttpServletResponse response) {
         Cookie[] cookies = request.getCookies();
         Cookie oldCookie = null;
@@ -162,7 +166,6 @@ public class ArticleService {
         }
 
         if (oldCookie != null) {
-            // 쿠키가 이미 있을 때: 해당 게시글 ID가 포함 안 되어 있으면 +1
             if (!oldCookie.getValue().contains(articleIdTag)) {
                 article.setViewCount(article.getViewCount() + 1);
                 oldCookie.setValue(oldCookie.getValue() + articleIdTag);
@@ -172,11 +175,10 @@ public class ArticleService {
             }
 
         } else {
-            // 쿠키가 아예 없을 때 (첫 방문)
             article.setViewCount(article.getViewCount() + 1);
             Cookie newCookie = new Cookie("growLabPostView", articleIdTag);
             newCookie.setPath("/");
-            newCookie.setHttpOnly(true); // 보안 강화
+            newCookie.setHttpOnly(true);
             newCookie.setMaxAge(60 * 60 * 24);
             response.addCookie(newCookie);
 
