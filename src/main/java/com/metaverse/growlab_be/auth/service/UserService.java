@@ -2,12 +2,17 @@ package com.metaverse.growlab_be.auth.service;
 
 import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.auth.domain.UserRole;
+import com.metaverse.growlab_be.auth.dto.AdminUserResponseDto;
 import com.metaverse.growlab_be.auth.dto.SignUpRequestDto;
 import com.metaverse.growlab_be.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Comparator;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -70,5 +75,48 @@ public class UserService {
         }
 
         userRepository.delete(user);
+    }
+
+    // ────────────────────────────────
+    // ✅ 관리자 전용 메서드
+    // ────────────────────────────────
+
+    // (관리자) 전체 회원 목록 조회 - 최신 가입순
+    @Transactional(readOnly = true)
+    public List<AdminUserResponseDto> getAllUsers() {
+        return userRepository.findAll().stream()
+                .sorted(Comparator.comparing(
+                        User::getCreatedAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())
+                ))
+                .map(AdminUserResponseDto::new)
+                .toList();
+    }
+
+    // (관리자) 회원 강제 탈퇴 - 비밀번호 검증 없이, 단 본인은 삭제 불가
+    @Transactional
+    public void deleteUserByAdmin(Long targetUserId, User currentAdmin) {
+        if (targetUserId.equals(currentAdmin.getId())) {
+            throw new IllegalStateException("본인 계정은 이 기능으로 삭제할 수 없습니다.");
+        }
+
+        User target = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다: " + targetUserId));
+
+        userRepository.delete(target);
+    }
+
+    // (관리자) 회원 권한 변경 - 단 본인 권한은 변경 불가
+    @Transactional
+    public AdminUserResponseDto updateUserRole(Long targetUserId, UserRole newRole, User currentAdmin) {
+        if (targetUserId.equals(currentAdmin.getId())) {
+            throw new IllegalStateException("본인 권한은 변경할 수 없습니다.");
+        }
+
+        User target = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다: " + targetUserId));
+
+        target.setUserRole(newRole);
+        return new AdminUserResponseDto(target);
     }
 }
