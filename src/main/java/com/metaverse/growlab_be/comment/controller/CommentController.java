@@ -7,6 +7,7 @@ import com.metaverse.growlab_be.comment.service.CommentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,7 +19,6 @@ import java.util.List;
 public class CommentController {
     private final CommentService commentService;
 
-    // 1. 댓글 작성
     @PostMapping("/articles/{articleId}/comments")
     public ResponseEntity<CommentResponseDto> createComment(
             @RequestBody CommentRequestDto commentRequestDto,
@@ -37,28 +37,24 @@ public class CommentController {
         return ResponseEntity.ok(commentResponseDto);
     }
 
-    // 2. 게시글 댓글 조회
     @GetMapping("/articles/{articleId}/comments")
     public ResponseEntity<List<CommentResponseDto>> getCommentsByArticle(@PathVariable Long articleId) {
         List<CommentResponseDto> commentResponseDtoList = commentService.getCommentsByArticle(articleId);
         return ResponseEntity.ok(commentResponseDtoList);
     }
 
-    // 3. 전체 댓글 조회
     @GetMapping("/comments")
     public ResponseEntity<List<CommentResponseDto>> getComments() {
         List<CommentResponseDto> commentResponseDtoList = commentService.getComments();
         return ResponseEntity.ok(commentResponseDtoList);
     }
 
-    // 4. 내가 쓴 댓글 조회
     @GetMapping("/comments/my")
     public ResponseEntity<List<CommentResponseDto>> getMyComments(@RequestParam Long userId) {
         List<CommentResponseDto> commentResponseDtoList = commentService.getMyComments(userId);
         return ResponseEntity.ok(commentResponseDtoList);
     }
 
-    // 5. 댓글 수정
     @PutMapping("/comments/{commentId}")
     public ResponseEntity<CommentResponseDto> updateComment(
             @PathVariable Long commentId,
@@ -67,11 +63,24 @@ public class CommentController {
         return ResponseEntity.ok(commentResponseDto);
     }
 
-    // 6. 댓글 삭제
+    // ✅ 일반 삭제 - 본인 댓글만 가능
     @DeleteMapping("/comments/{commentId}")
     public ResponseEntity<Void> deleteComment(
-            @PathVariable Long commentId) {
-        commentService.deleteComment(commentId);
+            @PathVariable Long commentId,
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+        commentService.deleteComment(commentId, principalDetails);
         return ResponseEntity.noContent().build();
+    }
+
+    // ✅ (관리자) 강제 삭제 - 소유자 무관
+    @DeleteMapping("/admin/comments/{commentId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<String> deleteCommentByAdmin(@PathVariable Long commentId) {
+        try {
+            commentService.deleteCommentByAdmin(commentId);
+            return ResponseEntity.ok("댓글이 삭제되었습니다.");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        }
     }
 }
