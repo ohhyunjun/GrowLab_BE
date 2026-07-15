@@ -14,6 +14,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -74,10 +75,25 @@ public class ArticleController {
         return ResponseEntity.ok(articleResponseDto);
     }
 
+    // ✅ 일반 삭제 - 본인 게시글만 가능
     @DeleteMapping("{articleId}")
-    public ResponseEntity<Void> deleteArticle(@PathVariable Long articleId) {
-        articleService.deleteArticle(articleId);
+    public ResponseEntity<Void> deleteArticle(
+            @PathVariable Long articleId,
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+        articleService.deleteArticle(articleId, principalDetails);
         return ResponseEntity.noContent().build();
+    }
+
+    // ✅ (관리자) 강제 삭제 - 소유자 무관
+    @DeleteMapping("/admin/{articleId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<String> deleteArticleByAdmin(@PathVariable Long articleId) {
+        try {
+            articleService.deleteArticleByAdmin(articleId);
+            return ResponseEntity.ok("게시글이 삭제되었습니다.");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        }
     }
 
     @GetMapping("liked")
