@@ -57,5 +57,7 @@ public class Species extends TimeStamped {
         this.name = speciesRequestDto.getName();
         this.daysToMature = speciesRequestDto.getDaysToMature();
         this.aiPromptGuideline = speciesRequestDto.getAiPromptGuideline();
+        this.category = speciesRequestDto.getCategory();
+        this.difficulty = speciesRequestDto.getDifficulty();
     }
 }
