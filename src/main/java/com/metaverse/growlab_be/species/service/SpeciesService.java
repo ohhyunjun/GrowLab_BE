@@ -20,12 +20,10 @@ public class SpeciesService {
     // (관리자) 새 품종 등록
     @Transactional
     public SpeciesResponseDto createSpecies(SpeciesRequestDto speciesrequestDto) {
-        // 이름 중복 체크
         speciesRepository.findByName(speciesrequestDto.getName()).ifPresent(s -> {
             throw new IllegalArgumentException("이미 존재하는 품종입니다.");
         });
 
-        // DTO -> Entity 변환 후 저장
         Species newSpecies = new Species(speciesrequestDto);
         Species savedSpecies = speciesRepository.save(newSpecies);
 
@@ -35,10 +33,25 @@ public class SpeciesService {
     // 전체 품종 목록 조회
     @Transactional(readOnly = true)
     public List<SpeciesResponseDto> getAllSpecies() {
-        // 최신 등록순으로 정렬하여 조회
         List<SpeciesResponseDto> speciesResponseDtoList = speciesRepository.findAllByOrderByCreatedAtDesc().stream()
                 .map(SpeciesResponseDto::new).toList();
         return speciesResponseDtoList;
+    }
+
+    // ✅ (관리자) 품종 수정
+    @Transactional
+    public SpeciesResponseDto updateSpecies(Long id, SpeciesRequestDto speciesRequestDto) {
+        Species species = findSpeciesById(id);
+
+        // 이름을 다른 값으로 바꾸는 경우에만, 그 이름이 이미 다른 품종에서 쓰이고 있는지 체크
+        if (!species.getName().equals(speciesRequestDto.getName())) {
+            speciesRepository.findByName(speciesRequestDto.getName()).ifPresent(s -> {
+                throw new IllegalArgumentException("이미 존재하는 품종 이름입니다.");
+            });
+        }
+
+        species.update(speciesRequestDto);
+        return new SpeciesResponseDto(species);
     }
 
     // (관리자) 품종 삭제
@@ -46,7 +59,6 @@ public class SpeciesService {
     public void deleteSpecies(Long id) {
         Species species = findSpeciesById(id);
 
-        // 품종을 참조하는 식물(Plant)이 있으면 삭제 불가
         if (!species.getPlants().isEmpty()) {
             throw new IllegalStateException("해당 품종을 사용하는 식물이 존재하여 삭제할 수 없습니다.");
         }

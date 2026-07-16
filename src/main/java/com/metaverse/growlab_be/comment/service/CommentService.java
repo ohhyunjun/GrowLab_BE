@@ -60,8 +60,19 @@ public class CommentService {
         return new CommentResponseDto(foundComment);
     }
 
+    // ✅ 일반 삭제 - 본인 댓글만 삭제 가능
     @Transactional
-    public void deleteComment(Long commentId) {
+    public void deleteComment(Long commentId, PrincipalDetails principalDetails) {
+        Comment foundComment = getValidCommentById(commentId);
+        if (!foundComment.getUser().getId().equals(principalDetails.user().getId())) {
+            throw new IllegalArgumentException("본인의 댓글만 삭제할 수 있습니다.");
+        }
+        commentRepository.delete(foundComment);
+    }
+
+    // ✅ (관리자) 소유자 상관없이 강제 삭제
+    @Transactional
+    public void deleteCommentByAdmin(Long commentId) {
         Comment foundComment = getValidCommentById(commentId);
         commentRepository.delete(foundComment);
     }

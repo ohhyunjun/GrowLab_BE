@@ -34,6 +34,16 @@ public class SpeciesController {
         return ResponseEntity.ok(speciesResponseDtoList);
     }
 
+    // ✅ (관리자) 품종 수정 - PUT /api/species/{speciesId}
+    @PutMapping("/{speciesId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<SpeciesResponseDto> updateSpecies(
+            @PathVariable Long speciesId,
+            @Valid @RequestBody SpeciesRequestDto speciesRequestDto) {
+        SpeciesResponseDto result = speciesService.updateSpecies(speciesId, speciesRequestDto);
+        return ResponseEntity.ok(result);
+    }
+
     // (관리자) 품종 삭제 - DELETE /api/species
     @DeleteMapping("/{speciesId}")
     @PreAuthorize("hasRole('ADMIN')")
