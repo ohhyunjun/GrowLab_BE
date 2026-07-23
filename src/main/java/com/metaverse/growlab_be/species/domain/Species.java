@@ -1,7 +1,6 @@
 package com.metaverse.growlab_be.species.domain;
 
 import com.metaverse.growlab_be.common.domain.TimeStamped;
-import com.metaverse.growlab_be.plant.domain.Plant;
 import com.metaverse.growlab_be.species.dto.SpeciesRequestDto;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -40,10 +39,6 @@ public class Species extends TimeStamped {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Difficulty difficulty;
-
-    // Plant와 1:N 관계
-    @OneToMany(mappedBy = "species", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Plant> plants = new ArrayList<>();
 
     public Species(SpeciesRequestDto speciesRequestDto) {
         this.name = speciesRequestDto.getName();

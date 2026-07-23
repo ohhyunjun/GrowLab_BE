@@ -77,10 +77,11 @@ public class PlantResponseDto {
         }
 
         // Species 매핑
-        if (plant.getSpecies() != null) {
-            this.speciesId = plant.getSpecies().getId();
-            this.speciesName = plant.getSpecies().getName();
-            this.daysToMature = plant.getSpecies().getDaysToMature();
+        if (plant.getDevice() != null &&
+                plant.getDevice().getSpecies() != null) {
+            this.speciesId = plant.getDevice().getSpecies().getId();
+            this.speciesName = plant.getDevice().getSpecies().getName();
+            this.daysToMature = plant.getDevice().getSpecies().getDaysToMature();
         }
     }
 }

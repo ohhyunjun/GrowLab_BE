@@ -7,6 +7,7 @@ import com.metaverse.growlab_be.device.repository.DeviceRepository;
 import com.metaverse.growlab_be.photo.domain.Photo;
 import com.metaverse.growlab_be.photo.repository.PhotoRepository;
 import com.metaverse.growlab_be.plant.domain.Plant;
+import com.metaverse.growlab_be.plant.repository.PlantRepository;
 import com.metaverse.growlab_be.species.domain.Species;
 import com.metaverse.growlab_be.species.repository.SpeciesRepository;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class DeviceService {
     private final DeviceRepository deviceRepository;
     private final PhotoRepository  photoRepository;
     private final SpeciesRepository speciesRepository;
+    private final PlantRepository plantRepository;
 
     public List<DeviceResponseDto> getUserDevices(User user) {
         List<Device> devices = deviceRepository.findByUserId(user.getId());
@@ -41,7 +43,7 @@ public class DeviceService {
                                     p.getId(),
                                     p.getName(),
                                     p.getPortIndex(),
-                                    p.getSpecies() != null ? p.getSpecies().getName() : null,
+                                    device.getSpecies() != null ? device.getSpecies().getName() : null,
                                     p.getPlantStage(),
                                     p.getPlantedAt(),
                                     p.getGerminatedAt(),
@@ -93,8 +95,10 @@ public class DeviceService {
     @Transactional
     public void deleteDevice(String serialNumber, User user) {
         Device device = findDeviceOwnedByUser(serialNumber, user);
+        device.getPlants().clear();
         device.setUser(null);
         device.setSpecies(null);
+        device.setPortStatus("00000000");
     }
 
     @Transactional
@@ -150,7 +154,7 @@ public class DeviceService {
         List<DeviceResponseDto.PlantSummaryDto> plantSummaries = device.getPlants().stream()
                 .map(p -> new DeviceResponseDto.PlantSummaryDto(
                         p.getId(), p.getName(), p.getPortIndex(),
-                        p.getSpecies() != null ? p.getSpecies().getName() : null,
+                        device.getSpecies() != null ? device.getSpecies().getName() : null,
                         p.getPlantStage(), p.getPlantedAt(), p.getGerminatedAt(), p.getMaturedAt()
                 ))
                 .sorted(Comparator.comparingInt(DeviceResponseDto.PlantSummaryDto::getPortIndex))
