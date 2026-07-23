@@ -84,7 +84,7 @@ public class PhotoService {
                     .ifPresent(plant -> {
                         try {
                             updatePlantStageAndNotice(device, plant, dto.getPortIndex(), growthResult,
-                                    diseaseResult, determineCropType(plant));
+                                    diseaseResult, determineCropType(device));
                         } catch (Exception e) {
                             System.err.println("식물 상태 업데이트 중 오류: " + e.getMessage());
                         }
@@ -163,8 +163,8 @@ public class PhotoService {
         }
     }
 
-    private String determineCropType(Plant plant) {
-        String name = plant.getSpecies().getName().toLowerCase();
+    private String determineCropType(Device device) {
+        String name = device.getSpecies().getName().toLowerCase();
         if (name.contains("상추") || name.contains("lettuce")) return "lettuce";
         if (name.contains("토마토") || name.contains("tomato")) return "tomato";
         return "tomato";
