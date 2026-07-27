@@ -25,4 +25,16 @@ public class SpeciesRequestDto {
     private Difficulty difficulty;
 
     private String aiPromptGuideline;
+
+    // ✅ 재배 기준 (전부 선택 입력)
+    private Double minTemperature;
+    private Double maxTemperature;
+    private Double minHumidity;
+    private Double maxHumidity;
+    private Double minPh;
+    private Double maxPh;
+    private Double minTds;
+    private Double maxTds;
+    private Double minLightHours;
+    private Double maxLightHours;
 }
