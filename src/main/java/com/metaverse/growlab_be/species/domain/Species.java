@@ -1,15 +1,11 @@
 package com.metaverse.growlab_be.species.domain;
 
 import com.metaverse.growlab_be.common.domain.TimeStamped;
-import com.metaverse.growlab_be.plant.domain.Plant;
 import com.metaverse.growlab_be.species.dto.SpeciesRequestDto;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @Getter
 @Setter
@@ -71,10 +67,6 @@ public class Species extends TimeStamped {
 
     @Column(name = "max_light_hours")
     private Double maxLightHours;
-
-    // Plant와 1:N 관계
-    @OneToMany(mappedBy = "species", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Plant> plants = new ArrayList<>();
 
     public Species(SpeciesRequestDto speciesRequestDto) {
         applyFrom(speciesRequestDto);
