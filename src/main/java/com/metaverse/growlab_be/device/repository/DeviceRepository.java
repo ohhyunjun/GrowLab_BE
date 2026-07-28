@@ -10,4 +10,6 @@ import java.util.List;
 public interface DeviceRepository extends JpaRepository<Device, String>  {
 
     List<Device> findByUserId(Long userId);
+
+    boolean existsBySpecies_Id(Long speciesId);
 }

@@ -1,6 +1,5 @@
 package com.metaverse.growlab_be.species.service;
 
-import com.metaverse.growlab_be.plant.dto.PlantResponseDto;
 import com.metaverse.growlab_be.species.domain.Species;
 import com.metaverse.growlab_be.species.dto.SpeciesRequestDto;
 import com.metaverse.growlab_be.species.dto.SpeciesResponseDto;
@@ -8,6 +7,7 @@ import com.metaverse.growlab_be.species.repository.SpeciesRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.metaverse.growlab_be.device.repository.DeviceRepository;
 
 import java.util.List;
 
@@ -16,6 +16,7 @@ import java.util.List;
 public class SpeciesService {
 
     private final SpeciesRepository speciesRepository;
+    private final DeviceRepository deviceRepository;
 
     // (관리자) 새 품종 등록
     @Transactional
@@ -59,8 +60,8 @@ public class SpeciesService {
     public void deleteSpecies(Long id) {
         Species species = findSpeciesById(id);
 
-        if (!species.getPlants().isEmpty()) {
-            throw new IllegalStateException("해당 품종을 사용하는 식물이 존재하여 삭제할 수 없습니다.");
+        if (deviceRepository.existsBySpecies_Id(id)) {
+            throw new IllegalStateException("해당 품종을 사용하는 기기가 존재하여 삭제할 수 없습니다.");
         }
 
         speciesRepository.delete(species);

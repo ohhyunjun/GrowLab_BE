@@ -12,7 +12,6 @@ public class PlantRequestDto {
     private LocalDateTime plantedAt; // 심은 날짜
     private LocalDateTime germinatedAt; // 발아 날짜
     private LocalDateTime maturedAt; // 성숙 날짜
-    private Long speciesId; // 종 이름
     private String serialNumber; // 시리얼 넘버
     private Integer portIndex; // 포트번호(0~7)
 }

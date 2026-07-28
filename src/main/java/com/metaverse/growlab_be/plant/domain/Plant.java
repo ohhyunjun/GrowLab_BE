@@ -5,7 +5,6 @@ import com.metaverse.growlab_be.device.domain.Device;
 import com.metaverse.growlab_be.diary.domain.Diary;
 import com.metaverse.growlab_be.plant.dto.PlantRequestDto;
 import com.metaverse.growlab_be.prediction.domain.Prediction;
-import com.metaverse.growlab_be.species.domain.Species;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -65,21 +64,14 @@ public class Plant extends TimeStamped {
     @JoinColumn(name = "device_serial", nullable = false)
     private Device device;
 
-    // Species와의 N:1 관계
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "species_id", nullable = false)
-    private Species species;
-
-    public Plant(PlantRequestDto plantRequestDto, Species species, Device device) {
+    public Plant(PlantRequestDto plantRequestDto, Device device) {
         this.name = plantRequestDto.getName();
         this.plantedAt = plantRequestDto.getPlantedAt();
         this.germinatedAt = plantRequestDto.getGerminatedAt();
         this.maturedAt = plantRequestDto.getMaturedAt();
         this.plantStage = plantRequestDto.getPlantStage();
         this.portIndex = plantRequestDto.getPortIndex();
-        this.species = species;
         this.device = device;
-
     }
 
     public void update(PlantRequestDto plantRequestDtorequestDto) {
