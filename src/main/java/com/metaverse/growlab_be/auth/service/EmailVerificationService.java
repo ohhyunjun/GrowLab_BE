@@ -24,13 +24,25 @@ public class EmailVerificationService {
     private static final long EXPIRATION_MINUTES = 5;
     private final SecureRandom random = new SecureRandom();
 
-    // 인증코드 발송 (재발송 시 기존 코드 갱신)
+    // 회원가입용 - 인증코드 발송 (가입되지 않은 이메일이어야 함)
     @Transactional
     public void sendVerificationCode(String email) {
         if (userRepository.existsByEmail(email)) {
             throw new IllegalArgumentException("이미 가입된 이메일입니다.");
         }
+        issueAndSendCode(email, "[GrowLab] 이메일 인증 코드");
+    }
 
+    // ✅ 비밀번호 재설정용 - 인증코드 발송 (가입된 이메일이어야 함)
+    @Transactional
+    public void sendPasswordResetCode(String email) {
+        if (!userRepository.existsByEmail(email)) {
+            throw new IllegalArgumentException("가입되지 않은 이메일입니다.");
+        }
+        issueAndSendCode(email, "[GrowLab] 비밀번호 재설정 인증 코드");
+    }
+
+    private void issueAndSendCode(String email, String subject) {
         String code = generateCode();
         LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(EXPIRATION_MINUTES);
 
@@ -40,10 +52,10 @@ public class EmailVerificationService {
                         () -> emailVerificationRepository.save(new EmailVerification(email, code, expiresAt))
                 );
 
-        sendMail(email, code);
+        sendMail(email, code, subject);
     }
 
-    // 코드 검증
+    // 코드 검증 (회원가입/비밀번호 재설정 공통)
     @Transactional
     public void verifyCode(String email, String code) {
         EmailVerification verification = emailVerificationRepository.findByEmail(email)
@@ -60,7 +72,6 @@ public class EmailVerificationService {
         verification.markVerified();
     }
 
-    // 회원가입 시 이 이메일이 인증 완료 상태인지 확인
     @Transactional(readOnly = true)
     public boolean isVerified(String email) {
         return emailVerificationRepository.findByEmail(email)
@@ -68,14 +79,12 @@ public class EmailVerificationService {
                 .orElse(false);
     }
 
-    // 회원가입 성공 후 인증 레코드 정리
     @Transactional
     public void deleteVerification(String email) {
         emailVerificationRepository.findByEmail(email)
                 .ifPresent(emailVerificationRepository::delete);
     }
 
-    // 매시 정각에 만료됐는데 끝내 인증 안 된 레코드 정리
     @Scheduled(cron = "0 0 * * * *")
     @Transactional
     public void cleanupExpired() {
@@ -89,10 +98,10 @@ public class EmailVerificationService {
         return String.format("%06d", number);
     }
 
-    private void sendMail(String to, String code) {
+    private void sendMail(String to, String code, String subject) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(to);
-        message.setSubject("[GrowLab] 이메일 인증 코드");
+        message.setSubject(subject);
         message.setText("인증코드는 " + code + " 입니다. " + EXPIRATION_MINUTES + "분 이내에 입력해주세요.");
         mailSender.send(message);
     }
