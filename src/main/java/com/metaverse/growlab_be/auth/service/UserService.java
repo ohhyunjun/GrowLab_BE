@@ -19,6 +19,7 @@ import java.util.List;
 public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final EmailVerificationService emailVerificationService; // ✅ 추가
 
     @Transactional
     public void registerUser(SignUpRequestDto signUpRequestDto) {
@@ -30,14 +31,22 @@ public class UserService {
             throw new IllegalArgumentException("Email 사용자 계정이 사용중입니다.");
         }
 
+        // ✅ 이메일 인증 완료 여부 확인
+        if (!emailVerificationService.isVerified(signUpRequestDto.getEmail())) {
+            throw new IllegalArgumentException("이메일 인증을 먼저 완료해주세요.");
+        }
+
         User newUser = new User(
                 signUpRequestDto.getUsername(),
                 passwordEncoder.encode(signUpRequestDto.getPassword()),
                 signUpRequestDto.getEmail(),
-                UserRole.ROLE_USER // 사용자 역할 임시 하드코딩(추가로직 필요)
+                UserRole.ROLE_USER
         );
 
         userRepository.save(newUser);
+
+        // ✅ 가입 완료 후 인증 레코드 정리
+        emailVerificationService.deleteVerification(signUpRequestDto.getEmail());
     }
 
     @Transactional
@@ -58,18 +67,15 @@ public class UserService {
         User findUser = userRepository.findById(user.getId())
                 .orElseThrow(() -> new IllegalArgumentException("유저 없음"));
 
-        //기존 비밀번호 검증
         if (!passwordEncoder.matches(oldPassword, findUser.getPassword())) {
             throw new IllegalArgumentException("기존 비밀번호가 일치하지 않습니다.");
         }
 
-        //새 비밀번호 인코딩 후 저장
         findUser.setPassword(passwordEncoder.encode(newPassword));
     }
 
     @Transactional
     public void deleteUser(User user, String password) {
-        // 비밀번호 확인
         if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
         }
