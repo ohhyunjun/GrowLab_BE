@@ -6,7 +6,6 @@ import com.metaverse.growlab_be.auth.dto.AdminUserResponseDto;
 import com.metaverse.growlab_be.auth.dto.SignUpRequestDto;
 import com.metaverse.growlab_be.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,7 +18,7 @@ import java.util.List;
 public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final EmailVerificationService emailVerificationService; // ✅ 추가
+    private final EmailVerificationService emailVerificationService;
 
     @Transactional
     public void registerUser(SignUpRequestDto signUpRequestDto) {
@@ -31,7 +30,6 @@ public class UserService {
             throw new IllegalArgumentException("Email 사용자 계정이 사용중입니다.");
         }
 
-        // ✅ 이메일 인증 완료 여부 확인
         if (!emailVerificationService.isVerified(signUpRequestDto.getEmail())) {
             throw new IllegalArgumentException("이메일 인증을 먼저 완료해주세요.");
         }
@@ -45,7 +43,6 @@ public class UserService {
 
         userRepository.save(newUser);
 
-        // ✅ 가입 완료 후 인증 레코드 정리
         emailVerificationService.deleteVerification(signUpRequestDto.getEmail());
     }
 
@@ -74,6 +71,22 @@ public class UserService {
         findUser.setPassword(passwordEncoder.encode(newPassword));
     }
 
+    // ✅ 비밀번호 찾기(재설정) - 로그인 없이, 이메일 인증 완료 여부로만 검증
+    @Transactional
+    public void resetPassword(String email, String newPassword) {
+        if (!emailVerificationService.isVerified(email)) {
+            throw new IllegalArgumentException("이메일 인증을 먼저 완료해주세요.");
+        }
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("가입되지 않은 이메일입니다."));
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+
+        // 재설정 완료 후 인증 기록 정리 (재사용 방지)
+        emailVerificationService.deleteVerification(email);
+    }
+
     @Transactional
     public void deleteUser(User user, String password) {
         if (!passwordEncoder.matches(password, user.getPassword())) {
@@ -87,7 +100,6 @@ public class UserService {
     // ✅ 관리자 전용 메서드
     // ────────────────────────────────
 
-    // (관리자) 전체 회원 목록 조회 - 최신 가입순
     @Transactional(readOnly = true)
     public List<AdminUserResponseDto> getAllUsers() {
         return userRepository.findAll().stream()
@@ -99,7 +111,6 @@ public class UserService {
                 .toList();
     }
 
-    // (관리자) 회원 강제 탈퇴 - 비밀번호 검증 없이, 단 본인은 삭제 불가
     @Transactional
     public void deleteUserByAdmin(Long targetUserId, User currentAdmin) {
         if (targetUserId.equals(currentAdmin.getId())) {
@@ -112,7 +123,6 @@ public class UserService {
         userRepository.delete(target);
     }
 
-    // (관리자) 회원 권한 변경 - 단 본인 권한은 변경 불가
     @Transactional
     public AdminUserResponseDto updateUserRole(Long targetUserId, UserRole newRole, User currentAdmin) {
         if (targetUserId.equals(currentAdmin.getId())) {
