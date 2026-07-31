@@ -33,7 +33,7 @@ public class EmailVerificationService {
         issueAndSendCode(email, "[GrowLab] 이메일 인증 코드");
     }
 
-    // ✅ 비밀번호 재설정용 - 인증코드 발송 (가입된 이메일이어야 함)
+    // 비밀번호 재설정용 - 인증코드 발송 (가입된 이메일이어야 함)
     @Transactional
     public void sendPasswordResetCode(String email) {
         if (!userRepository.existsByEmail(email)) {
@@ -55,8 +55,10 @@ public class EmailVerificationService {
         sendMail(email, code, subject);
     }
 
-    // 코드 검증 (회원가입/비밀번호 재설정 공통)
-    @Transactional
+    // ✅ 코드 검증 (회원가입/비밀번호 재설정 공통)
+    // noRollbackFor: 인증 실패로 예외가 던져져도 increaseAttempt()로 늘어난
+    // 시도 횟수는 반드시 DB에 반영(커밋)되어야 하므로 롤백 대상에서 제외
+    @Transactional(noRollbackFor = IllegalArgumentException.class)
     public void verifyCode(String email, String code) {
         EmailVerification verification = emailVerificationRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("인증 요청 내역이 없습니다. 인증코드를 먼저 받아주세요."));
@@ -65,8 +67,17 @@ public class EmailVerificationService {
             throw new IllegalArgumentException("인증코드가 만료되었습니다. 다시 받아주세요.");
         }
 
+        if (verification.isAttemptsExceeded()) {
+            throw new IllegalArgumentException("인증코드 입력을 " + EmailVerification.MAX_ATTEMPTS + "회 이상 실패했습니다. 인증코드를 다시 받아주세요.");
+        }
+
         if (!verification.getCode().equals(code)) {
-            throw new IllegalArgumentException("인증코드가 일치하지 않습니다.");
+            verification.increaseAttempt();
+            int remaining = EmailVerification.MAX_ATTEMPTS - verification.getAttemptCount();
+            if (remaining <= 0) {
+                throw new IllegalArgumentException("인증코드가 일치하지 않습니다. 인증코드 입력 횟수를 초과하여, 다시 받아주세요.");
+            }
+            throw new IllegalArgumentException("인증코드가 일치하지 않습니다. (남은 시도: " + remaining + "회)");
         }
 
         verification.markVerified();
