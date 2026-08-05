@@ -6,6 +6,8 @@ import com.metaverse.growlab_be.species.domain.Species;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.util.List;
+
 @Getter
 @AllArgsConstructor
 public class SpeciesResponseDto {
@@ -28,6 +30,10 @@ public class SpeciesResponseDto {
     private Double minLightHours;
     private Double maxLightHours;
 
+    // ✅ 생육 단계 정보
+    private List<String> stageNames;
+    private int stageCount;
+
     public SpeciesResponseDto(Species species) {
         this.id = species.getId();
         this.name = species.getName();
@@ -45,5 +51,7 @@ public class SpeciesResponseDto {
         this.maxTds = species.getMaxTds();
         this.minLightHours = species.getMinLightHours();
         this.maxLightHours = species.getMaxLightHours();
+        this.stageNames = species.getStageNames();
+        this.stageCount = species.getStageCount();
     }
 }

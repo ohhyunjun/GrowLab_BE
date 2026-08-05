@@ -8,6 +8,8 @@ import jakarta.validation.constraints.Positive;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Getter
 @NoArgsConstructor
 public class SpeciesRequestDto {
@@ -26,7 +28,6 @@ public class SpeciesRequestDto {
 
     private String aiPromptGuideline;
 
-    // ✅ 재배 기준 (전부 선택 입력)
     private Double minTemperature;
     private Double maxTemperature;
     private Double minHumidity;
@@ -37,4 +38,7 @@ public class SpeciesRequestDto {
     private Double maxTds;
     private Double minLightHours;
     private Double maxLightHours;
+
+    // ✅ 생육 단계명 목록 (선택 입력, 비워두면 기본 3단계 사용)
+    private List<String> stageNames;
 }
