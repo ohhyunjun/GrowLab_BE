@@ -3,9 +3,10 @@ package com.metaverse.growlab_be.plant.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.metaverse.growlab_be.diary.dto.DiaryResponseDto;
 import com.metaverse.growlab_be.plant.domain.Plant;
-import com.metaverse.growlab_be.plant.domain.PlantStage;
+import com.metaverse.growlab_be.species.domain.Species;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -15,22 +16,25 @@ import java.util.stream.Collectors;
 public class PlantResponseDto {
 
     private Long id;
-    private String name;           // 식물 이름
+    private String name;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime plantedAt;        // 심은 날짜
+    private LocalDateTime plantedAt;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime germinatedAt;     // 발아 날짜
+    private LocalDateTime germinatedAt;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime maturedAt;     // 성숙 날짜
+    private LocalDateTime maturedAt;
 
-    private Long speciesId;       // 종 정보 (ID)
-    private String speciesName;   // 종 정보 (이름)
+    private Long speciesId;
+    private String speciesName;
     private Integer daysToMature;
 
-    private PlantStage plantStage;     // 현재 성장 단계
+    // ✅ 생육 단계 - 인덱스 + 이 품종에서의 실제 이름 + 총 단계 수
+    private Integer stageIndex;
+    private String stageName;
+    private Integer stageCount;
 
     private String deviceSerial;
     private String deviceNickname;
@@ -45,28 +49,26 @@ public class PlantResponseDto {
 
     private String diseaseResult;
 
-    // 다이어리만 포함
     private List<DiaryResponseDto> diaries;
 
     public PlantResponseDto(Plant plant) {
         this.id = plant.getId();
         this.name = plant.getName();
 
-        this.plantStage = plant.getPlantStage();
         this.plantedAt = plant.getPlantedAt();
         this.germinatedAt = plant.getGerminatedAt();
         this.maturedAt = plant.getMaturedAt();
         this.createdAt = plant.getCreatedAt();
         this.updatedAt = plant.getUpdatedAt();
 
-        // Device가 null인 경우를 대비한 안전한 처리
+        this.stageIndex = plant.getStageIndex();
+
         if (plant.getDevice() != null) {
             this.deviceSerial = plant.getDevice().getId();
             this.deviceNickname = plant.getDevice().getDeviceNickname();
         }
 
         this.portIndex = plant.getPortIndex();
-
         this.diseaseResult = plant.getDiseaseResult();
 
         if (plant.getDiaries() != null) {
@@ -76,12 +78,13 @@ public class PlantResponseDto {
                     .collect(Collectors.toList());
         }
 
-        // Species 매핑
-        if (plant.getDevice() != null &&
-                plant.getDevice().getSpecies() != null) {
-            this.speciesId = plant.getDevice().getSpecies().getId();
-            this.speciesName = plant.getDevice().getSpecies().getName();
-            this.daysToMature = plant.getDevice().getSpecies().getDaysToMature();
+        if (plant.getDevice() != null && plant.getDevice().getSpecies() != null) {
+            Species species = plant.getDevice().getSpecies();
+            this.speciesId = species.getId();
+            this.speciesName = species.getName();
+            this.daysToMature = species.getDaysToMature();
+            this.stageName = species.getStageName(plant.getStageIndex());
+            this.stageCount = species.getStageCount();
         }
     }
 }
