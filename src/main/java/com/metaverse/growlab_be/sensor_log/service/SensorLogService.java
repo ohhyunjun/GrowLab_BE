@@ -7,6 +7,7 @@ import com.metaverse.growlab_be.sensor_log.domain.SensorLog;
 import com.metaverse.growlab_be.sensor_log.dto.SensorLogRequestDto;
 import com.metaverse.growlab_be.sensor_log.dto.SensorLogResponseDto;
 import com.metaverse.growlab_be.sensor_log.repository.SensorLogRepository;
+import com.metaverse.growlab_be.species.domain.Species;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -31,16 +32,13 @@ public class SensorLogService {
     @Value("${inference.server.url:http://localhost:5000}")
     private String inferenceServerUrl;
 
-    // SSE emitter 저장소: serialNumber → SseEmitter
     private final Map<String, SseEmitter> emitterMap = new ConcurrentHashMap<>();
     private final Map<String, SensorLogRequestDto> latestDataMap = new ConcurrentHashMap<>();
 
     @Transactional
     public SensorLogResponseDto createSensorLog (SensorLogRequestDto sensorLogRequestDto) {
-        // 시리얼 번호로 DB에서 기기 찾기
         Device device = getValidDeviceById(sensorLogRequestDto.getSerial_number());
 
-        // sensorlog 엔터티 생성
         SensorLog sensorLog = new SensorLog(
                 device,
                 sensorLogRequestDto.getTemperature(),
@@ -53,17 +51,14 @@ public class SensorLogService {
         triggerInference(device);
 
         return new SensorLogResponseDto(savedLog);
-
     }
 
-    // 추가: RPi 실시간 수신 → SSE로 프론트 push (DB 저장 X)
     public void pushRealtime(SensorLogRequestDto dto) {
         latestDataMap.put(dto.getSerial_number(), dto);
         SseEmitter emitter = emitterMap.get(dto.getSerial_number());
         if (emitter == null) return;
 
         try {
-            // Map.of() → HashMap으로 변경 (null 허용)
             Map<String, Object> payload = new HashMap<>();
             payload.put("serial_number",      dto.getSerial_number());
             payload.put("temperature",        dto.getTemperature());
@@ -80,9 +75,8 @@ public class SensorLogService {
         }
     }
 
-    // 추가: 프론트 SSE 연결 수립 (프론트에서 자동 재연결)
     public SseEmitter createEmitter(String serialNumber) {
-        SseEmitter emitter = new SseEmitter(5 * 60 * 1000L); // 5분 그대로
+        SseEmitter emitter = new SseEmitter(5 * 60 * 1000L);
 
         emitterMap.put(serialNumber, emitter);
         emitter.onCompletion(() -> emitterMap.remove(serialNumber));
@@ -92,7 +86,7 @@ public class SensorLogService {
         SensorLogRequestDto latest = latestDataMap.get(serialNumber);
         try {
             if (latest != null) {
-                Map<String, Object> payload = new HashMap<>();  // Map.of() → HashMap
+                Map<String, Object> payload = new HashMap<>();
                 payload.put("serial_number",      latest.getSerial_number());
                 payload.put("temperature",        latest.getTemperature());
                 payload.put("humidity",           latest.getHumidity());
@@ -110,8 +104,12 @@ public class SensorLogService {
         return emitter;
     }
 
+    // ✅ current_stage를 stageIndex로 교체, 품종 정보(species_id/name, total_stages)를 함께 전송
+    // → 추론 서버가 어떤 품종의 몇 단계 기준인지 알 수 있도록 함
     private void triggerInference(Device device) {
         if (device.getPlants() == null || device.getPlants().isEmpty()) return;
+
+        Species species = device.getSpecies();
 
         for (Plant plant : device.getPlants()) {
             try {
@@ -123,8 +121,15 @@ public class SensorLogService {
                 Map<String, Object> request = new HashMap<>();
                 request.put("plant_id",        plant.getId());
                 request.put("serial_number",   device.getId());
-                request.put("current_stage",   plant.getPlantStage().ordinal());
+                request.put("current_stage",   plant.getStageIndex());
                 request.put("days_from_start", daysFromStart);
+
+                // ✅ 품종별로 다른 단계 수/모델을 구분하기 위한 정보 추가
+                if (species != null) {
+                    request.put("species_id",    species.getId());
+                    request.put("species_name",  species.getName());
+                    request.put("total_stages",  species.getStageCount());
+                }
 
                 restTemplate.postForEntity(
                         inferenceServerUrl + "/predict",
@@ -142,7 +147,6 @@ public class SensorLogService {
     }
 
     public SensorLogRequestDto getLatestData(String serialNumber) {
-        return latestDataMap.get(serialNumber); // 없으면 null
+        return latestDataMap.get(serialNumber);
     }
-
 }
