@@ -39,6 +39,8 @@ public class SpeciesRequestDto {
     private Double minLightHours;
     private Double maxLightHours;
 
-    // ✅ 생육 단계명 목록 (선택 입력, 비워두면 기본 3단계 사용)
     private List<String> stageNames;
+
+    // ✅ 각 단계 시작일 (stageNames와 같은 개수/순서로 맞춰서 보내야 함)
+    private List<Integer> stageDurationDays;
 }

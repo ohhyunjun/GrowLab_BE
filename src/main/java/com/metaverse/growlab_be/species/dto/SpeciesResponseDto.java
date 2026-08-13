@@ -30,9 +30,9 @@ public class SpeciesResponseDto {
     private Double minLightHours;
     private Double maxLightHours;
 
-    // ✅ 생육 단계 정보
     private List<String> stageNames;
     private int stageCount;
+    private List<Integer> stageDurationDays; // ✅ 추가
 
     public SpeciesResponseDto(Species species) {
         this.id = species.getId();
@@ -53,5 +53,6 @@ public class SpeciesResponseDto {
         this.maxLightHours = species.getMaxLightHours();
         this.stageNames = species.getStageNames();
         this.stageCount = species.getStageCount();
+        this.stageDurationDays = species.getStageDurationDays();
     }
 }
