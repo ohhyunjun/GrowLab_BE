@@ -17,8 +17,8 @@ import java.util.List;
 @Table(name = "species")
 public class Species extends TimeStamped {
 
-    // 기본 단계명 (관리자가 별도로 지정하지 않은 품종에 사용, 기존 데이터 호환용)
     private static final List<String> DEFAULT_STAGE_NAMES = List.of("씨앗", "발아", "수확");
+    private static final List<Integer> DEFAULT_STAGE_DURATIONS = List.of(0, 7, 14);
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -71,13 +71,20 @@ public class Species extends TimeStamped {
     @Column(name = "max_light_hours")
     private Double maxLightHours;
 
-    // ✅ 이 품종의 생육 단계 이름 목록 (순서 있음, 개수 가변)
-    // 예: 상추 -> ["씨앗", "발아", "수확"], 딸기 -> ["발아", "육묘", "개화", "착과", "수확"]
+    // 이 품종의 생육 단계 이름 목록 (순서 있음, 개수 가변)
     @ElementCollection
     @CollectionTable(name = "species_stage", joinColumns = @JoinColumn(name = "species_id"))
     @OrderColumn(name = "stage_order")
     @Column(name = "stage_name", nullable = false)
     private List<String> stageNames = new ArrayList<>();
+
+    // ✅ 각 단계가 "재배 시작 후 며칠째부터" 시작되는지 (stageNames와 같은 순서/개수로 매칭)
+    // 예: [0, 7, 14] -> 0일째 첫 단계, 7일째부터 둘째 단계, 14일째부터 셋째 단계
+    @ElementCollection
+    @CollectionTable(name = "species_stage_duration", joinColumns = @JoinColumn(name = "species_id"))
+    @OrderColumn(name = "stage_order")
+    @Column(name = "start_day", nullable = false)
+    private List<Integer> stageDurationDays = new ArrayList<>();
 
     public Species(SpeciesRequestDto speciesRequestDto) {
         applyFrom(speciesRequestDto);
@@ -104,23 +111,63 @@ public class Species extends TimeStamped {
         this.minLightHours = dto.getMinLightHours();
         this.maxLightHours = dto.getMaxLightHours();
 
-        // 단계명이 요청에 명시되어 있으면 교체, 없으면 기존 값 유지(없으면 기본값)
         if (dto.getStageNames() != null && !dto.getStageNames().isEmpty()) {
             this.stageNames = new ArrayList<>(dto.getStageNames());
         } else if (this.stageNames == null || this.stageNames.isEmpty()) {
             this.stageNames = new ArrayList<>(DEFAULT_STAGE_NAMES);
         }
+
+        // ✅ 단계별 시작일. 단계명 개수와 다르게 오면 무시하고 기본값/기존값 유지 (불일치 방지)
+        if (dto.getStageDurationDays() != null
+                && !dto.getStageDurationDays().isEmpty()
+                && dto.getStageDurationDays().size() == this.stageNames.size()) {
+            this.stageDurationDays = new ArrayList<>(dto.getStageDurationDays());
+        } else if (this.stageDurationDays == null
+                || this.stageDurationDays.isEmpty()
+                || this.stageDurationDays.size() != this.stageNames.size()) {
+            this.stageDurationDays = buildDefaultDurations(this.stageNames.size());
+        }
     }
 
-    // 이 품종의 총 단계 개수
+    private List<Integer> buildDefaultDurations(int stageCount) {
+        if (stageCount == DEFAULT_STAGE_DURATIONS.size()) {
+            return new ArrayList<>(DEFAULT_STAGE_DURATIONS);
+        }
+        // 단계 수가 기본값과 다르면 0, 7, 14, 21... 처럼 7일 간격으로 자동 생성
+        List<Integer> generated = new ArrayList<>();
+        for (int i = 0; i < stageCount; i++) {
+            generated.add(i * 7);
+        }
+        return generated;
+    }
+
     public int getStageCount() {
         return stageNames == null || stageNames.isEmpty() ? DEFAULT_STAGE_NAMES.size() : stageNames.size();
     }
 
-    // index 번째 단계 이름 (범위를 벗어나면 마지막/처음 단계로 안전 처리)
     public String getStageName(int index) {
         List<String> names = (stageNames == null || stageNames.isEmpty()) ? DEFAULT_STAGE_NAMES : stageNames;
         int safeIndex = Math.max(0, Math.min(index, names.size() - 1));
         return names.get(safeIndex);
+    }
+
+    // ✅ index번째 단계가 시작되는 일수 (재배 시작일 기준)
+    public int getStageStartDay(int index) {
+        List<Integer> durations = (stageDurationDays == null || stageDurationDays.isEmpty())
+                ? DEFAULT_STAGE_DURATIONS : stageDurationDays;
+        int safeIndex = Math.max(0, Math.min(index, durations.size() - 1));
+        return durations.get(safeIndex);
+    }
+
+    // ✅ 재배 시작 후 daysElapsed일이 지났을 때, 날짜 기준으로 도달해야 할 단계 인덱스 계산
+    // (뒤에서부터 훑어서 daysElapsed 이상인 가장 마지막 단계를 찾음)
+    public int resolveStageIndexByDays(int daysElapsed) {
+        int count = getStageCount();
+        for (int i = count - 1; i >= 0; i--) {
+            if (daysElapsed >= getStageStartDay(i)) {
+                return i;
+            }
+        }
+        return 0;
     }
 }
