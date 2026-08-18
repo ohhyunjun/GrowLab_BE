@@ -20,7 +20,7 @@ import java.util.List;
 @Entity
 @Table(name = "plant", uniqueConstraints = {
         @UniqueConstraint(
-                name = "uk_device_port", // 제약 조건 이름
+                name = "uk_device_port",
                 columnNames = {"device_serial", "port_index"}
         )
 })
@@ -31,35 +31,33 @@ public class Plant extends TimeStamped {
     private Long id;
 
     @Column(nullable = false)
-    private String name; // 식물 이름
+    private String name;
 
     @Column(nullable = false)
-    private LocalDateTime plantedAt; // 심은 날짜
+    private LocalDateTime plantedAt;
 
     @Column
-    private LocalDateTime germinatedAt; // 발아 날짜
+    private LocalDateTime germinatedAt;
 
     @Column
-    private LocalDateTime maturedAt; // 성숙 날짜
+    private LocalDateTime maturedAt;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private PlantStage plantStage; // 성장 단계
+    // ✅ 몇 번째 생육 단계인지 (0부터 시작). 실제 이름은 Device.species.getStageName(stageIndex)로 조회
+    @Column(nullable = false, name = "stage_index")
+    private Integer stageIndex = 0;
 
     @Column(nullable = false, name = "port_index")
-    private Integer portIndex; // 포트 번호(0~7)
+    private Integer portIndex;
 
     @Column
-    private String diseaseResult; //질병(질병명) 혹은 건강
+    private String diseaseResult;
 
     @OneToMany(mappedBy = "plant", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Prediction> predictions = new ArrayList<>();
 
-    // Diary와의 1:N 관계
     @OneToMany(mappedBy = "plant", cascade = CascadeType.ALL, orphanRemoval = true)
     List<Diary> diaries = new ArrayList<>();
 
-    // Device와의 N:1 관계 설정
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "device_serial", nullable = false)
     private Device device;
@@ -69,16 +67,16 @@ public class Plant extends TimeStamped {
         this.plantedAt = plantRequestDto.getPlantedAt();
         this.germinatedAt = plantRequestDto.getGerminatedAt();
         this.maturedAt = plantRequestDto.getMaturedAt();
-        this.plantStage = plantRequestDto.getPlantStage();
+        this.stageIndex = plantRequestDto.getStageIndex() != null ? plantRequestDto.getStageIndex() : 0;
         this.portIndex = plantRequestDto.getPortIndex();
         this.device = device;
     }
 
-    public void update(PlantRequestDto plantRequestDtorequestDto) {
-        this.name = plantRequestDtorequestDto.getName();
-        this.plantStage = plantRequestDtorequestDto.getPlantStage();
-        this.plantedAt = plantRequestDtorequestDto.getPlantedAt();
-        this.germinatedAt = plantRequestDtorequestDto.getGerminatedAt();
-        this.maturedAt = plantRequestDtorequestDto.getMaturedAt();
+    public void update(PlantRequestDto plantRequestDto) {
+        this.name = plantRequestDto.getName();
+        this.stageIndex = plantRequestDto.getStageIndex() != null ? plantRequestDto.getStageIndex() : 0;
+        this.plantedAt = plantRequestDto.getPlantedAt();
+        this.germinatedAt = plantRequestDto.getGerminatedAt();
+        this.maturedAt = plantRequestDto.getMaturedAt();
     }
 }

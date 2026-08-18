@@ -6,8 +6,6 @@ import com.metaverse.growlab_be.device.dto.*;
 import com.metaverse.growlab_be.device.repository.DeviceRepository;
 import com.metaverse.growlab_be.photo.domain.Photo;
 import com.metaverse.growlab_be.photo.repository.PhotoRepository;
-import com.metaverse.growlab_be.plant.domain.Plant;
-import com.metaverse.growlab_be.plant.repository.PlantRepository;
 import com.metaverse.growlab_be.species.domain.Species;
 import com.metaverse.growlab_be.species.repository.SpeciesRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +25,6 @@ public class DeviceService {
     private final DeviceRepository deviceRepository;
     private final PhotoRepository  photoRepository;
     private final SpeciesRepository speciesRepository;
-    private final PlantRepository plantRepository;
 
     public List<DeviceResponseDto> getUserDevices(User user) {
         List<Device> devices = deviceRepository.findByUserId(user.getId());
@@ -39,16 +36,7 @@ public class DeviceService {
                             .orElse(null);
 
                     List<DeviceResponseDto.PlantSummaryDto> plantSummaries = device.getPlants().stream()
-                            .map(p -> new DeviceResponseDto.PlantSummaryDto(
-                                    p.getId(),
-                                    p.getName(),
-                                    p.getPortIndex(),
-                                    device.getSpecies() != null ? device.getSpecies().getName() : null,
-                                    p.getPlantStage(),
-                                    p.getPlantedAt(),
-                                    p.getGerminatedAt(),
-                                    p.getMaturedAt()
-                            ))
+                            .map(p -> buildPlantSummary(device, p))
                             .sorted(Comparator.comparingInt(DeviceResponseDto.PlantSummaryDto::getPortIndex))
                             .toList();
 
@@ -57,7 +45,6 @@ public class DeviceService {
                 .toList();
     }
 
-    // ✅ 관리자용 - 전체 기기(시리얼) 목록 조회 (배정/미배정 모두 포함)
     public List<AdminDeviceResponseDto> getAllDevicesForAdmin() {
         List<Device> devices = deviceRepository.findAll();
         return devices.stream()
@@ -135,12 +122,10 @@ public class DeviceService {
         device.setPortStatus(new String(bits));
     }
 
-    // ✅ 기기 대표 품종 설정/변경
     @Transactional
     public DeviceResponseDto updateDeviceSpecies(String serialNumber, Long speciesId, User user) {
         Device device = findDeviceOwnedByUser(serialNumber, user);
 
-        // 포트가 하나라도 켜져 있으면 품종 변경 불가
         String portStatus = device.getPortStatus();
         if (portStatus != null && portStatus.contains("1")) {
             throw new IllegalStateException("포트가 활성화된 상태에서는 품종을 변경할 수 없습니다.");
@@ -152,18 +137,29 @@ public class DeviceService {
         device.setSpecies(species);
 
         List<DeviceResponseDto.PlantSummaryDto> plantSummaries = device.getPlants().stream()
-                .map(p -> new DeviceResponseDto.PlantSummaryDto(
-                        p.getId(), p.getName(), p.getPortIndex(),
-                        device.getSpecies() != null ? device.getSpecies().getName() : null,
-                        p.getPlantStage(), p.getPlantedAt(), p.getGerminatedAt(), p.getMaturedAt()
-                ))
+                .map(p -> buildPlantSummary(device, p))
                 .sorted(Comparator.comparingInt(DeviceResponseDto.PlantSummaryDto::getPortIndex))
                 .toList();
 
         return new DeviceResponseDto(device, null, plantSummaries);
     }
 
-    // 헬퍼
+    // ✅ 공통: Plant + 소속 기기의 대표 품종을 조합해 요약 DTO 생성
+    private DeviceResponseDto.PlantSummaryDto buildPlantSummary(Device device, com.metaverse.growlab_be.plant.domain.Plant p) {
+        Species species = device.getSpecies();
+        return new DeviceResponseDto.PlantSummaryDto(
+                p.getId(),
+                p.getName(),
+                p.getPortIndex(),
+                species != null ? species.getName() : null,
+                p.getStageIndex(),
+                species != null ? species.getStageName(p.getStageIndex()) : null,
+                p.getPlantedAt(),
+                p.getGerminatedAt(),
+                p.getMaturedAt()
+        );
+    }
+
     private Device findDeviceOwnedByUser(String serialNumber, User user) {
         Device device = deviceRepository.findById(serialNumber)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기기입니다: " + serialNumber));

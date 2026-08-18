@@ -7,8 +7,6 @@ import com.metaverse.growlab_be.plant.domain.Plant;
 import com.metaverse.growlab_be.plant.dto.PlantRequestDto;
 import com.metaverse.growlab_be.plant.dto.PlantResponseDto;
 import com.metaverse.growlab_be.plant.repository.PlantRepository;
-import com.metaverse.growlab_be.species.domain.Species;
-import com.metaverse.growlab_be.species.repository.SpeciesRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -28,18 +26,18 @@ public class PlantService {
     public PlantResponseDto createPlant(PlantRequestDto plantRequestDto, User user) {
         Device device = findDeviceOwnedByUser(plantRequestDto.getSerialNumber(), user);
 
-        // 해당 포트에 이미 식물이 있는지 확인
         if (plantRepository.existsByDeviceIdAndPortIndex(device.getId(), plantRequestDto.getPortIndex())) {
             throw new IllegalArgumentException(plantRequestDto.getPortIndex() + "번 포트에는 이미 식물이 등록되어 있습니다.");
         }
 
-        // 기기에 대표 품종이 설정되어 있는지
         if (device.getSpecies() == null) {
-            throw new IllegalArgumentException(
-                    "기기에 재배 품종을 먼저 설정해야 합니다.");
+            throw new IllegalArgumentException("기기에 재배 품종을 먼저 설정해야 합니다.");
         }
 
         Plant plant = new Plant(plantRequestDto, device);
+        // ✅ 요청된 단계가 이 품종의 단계 범위를 벗어나면 안전하게 보정
+        plant.setStageIndex(clampStageIndex(device, plantRequestDto.getStageIndex()));
+
         Plant savedPlant = plantRepository.save(plant);
         return new PlantResponseDto(savedPlant);
     }
@@ -60,6 +58,7 @@ public class PlantService {
     public PlantResponseDto updatePlant(Long plantId, PlantRequestDto plantRequestDto, User user) {
         Plant plant = findPlantOwnedByUser(plantId, user);
         plant.update(plantRequestDto);
+        plant.setStageIndex(clampStageIndex(plant.getDevice(), plantRequestDto.getStageIndex()));
         return new PlantResponseDto(plant);
     }
 
@@ -68,8 +67,10 @@ public class PlantService {
         Plant plant = findPlantOwnedByUser(plantId, user);
 
         if (plantRequestDto.getName() != null) plant.setName(plantRequestDto.getName());
-        if (plantRequestDto.getPlantStage() != null) plant.setPlantStage(plantRequestDto.getPlantStage());
-        if (plantRequestDto.getPlantedAt()  != null) plant.setPlantedAt(plantRequestDto.getPlantedAt());
+        if (plantRequestDto.getStageIndex() != null) {
+            plant.setStageIndex(clampStageIndex(plant.getDevice(), plantRequestDto.getStageIndex()));
+        }
+        if (plantRequestDto.getPlantedAt() != null) plant.setPlantedAt(plantRequestDto.getPlantedAt());
 
         return new PlantResponseDto(plant);
     }
@@ -80,7 +81,15 @@ public class PlantService {
         plantRepository.delete(plant);
     }
 
-    // 헬퍼
+    // ✅ 요청된 단계 인덱스를 이 기기의 대표 품종이 가진 단계 범위(0 ~ stageCount-1) 안으로 보정
+    private int clampStageIndex(Device device, Integer requested) {
+        if (requested == null) return 0;
+        int maxIndex = (device != null && device.getSpecies() != null
+                ? device.getSpecies().getStageCount()
+                : 3) - 1;
+        return Math.max(0, Math.min(requested, maxIndex));
+    }
+
     private Plant findPlantOwnedByUser(Long plantId, User user) {
         return plantRepository.findByIdAndUserId(plantId, user.getId())
                 .orElseThrow(() -> new IllegalArgumentException("해당 식물을 찾을 수 없거나 접근 권한이 없습니다."));

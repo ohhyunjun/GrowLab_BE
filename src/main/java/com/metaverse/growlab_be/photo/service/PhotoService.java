@@ -10,23 +10,20 @@ import com.metaverse.growlab_be.photo.dto.PhotoRequestDto;
 import com.metaverse.growlab_be.photo.dto.PhotoResponseDto;
 import com.metaverse.growlab_be.photo.repository.PhotoRepository;
 import com.metaverse.growlab_be.plant.domain.Plant;
-import com.metaverse.growlab_be.plant.domain.PlantStage;
 import com.metaverse.growlab_be.plant.repository.PlantRepository;
+import com.metaverse.growlab_be.species.domain.Species;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.ObjectMapper;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Map;
-import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -55,7 +52,6 @@ public class PhotoService {
             throw new IllegalArgumentException("포트 번호(portIndex)가 누락되었습니다.");
         }
 
-        // 파일 저장
         File directory = new File(uploadDir);
         if (!directory.exists()) directory.mkdirs();
 
@@ -65,26 +61,22 @@ public class PhotoService {
         String filePath  = Paths.get(uploadDir, fileName).toString();
         imageFile.transferTo(new File(filePath));
 
-        // 분석 결과 resolve
         String  growthResult  = dto.getGrowthResult()      != null ? dto.getGrowthResult()      : "no_detection";
         Double  growthConf    = dto.getGrowthConfidence()  != null ? dto.getGrowthConfidence()  : 0.0;
         String  diseaseResult = dto.getDiseaseResult()     != null ? dto.getDiseaseResult()     : "no_detection";
         Double  diseaseConf   = dto.getDiseaseConfidence() != null ? dto.getDiseaseConfidence() : 0.0;
 
-        // Photo 엔티티 생성 시 portIndex 추가 반영
         Photo savedPhoto = photoRepository.save(new Photo(
                 device, dto.getPortIndex(), filePath, fileName,
                 growthResult, growthConf,
                 diseaseResult, diseaseConf
         ));
 
-        // Plant 상태 갱신 + 알림
         if (device.getUser() != null) {
             plantRepository.findByDeviceIdAndPortIndex(device.getId(), dto.getPortIndex())
                     .ifPresent(plant -> {
                         try {
-                            updatePlantStageAndNotice(device, plant, dto.getPortIndex(), growthResult,
-                                    diseaseResult, determineCropType(device));
+                            updatePlantStageAndNotice(device, plant, dto.getPortIndex(), growthResult, diseaseResult);
                         } catch (Exception e) {
                             System.err.println("식물 상태 업데이트 중 오류: " + e.getMessage());
                         }
@@ -102,72 +94,86 @@ public class PhotoService {
     }
 
     private void updatePlantStageAndNotice(Device device, Plant plant, Integer portIndex,
-                                           String growthResult, String diseaseResult, String cropType) {
+                                           String growthResult, String diseaseResult) {
 
-        // 1. 질병 상태 업데이트 로직 추가
+        // 1. 질병 상태 업데이트
         if ("disease".equalsIgnoreCase(diseaseResult)) {
             plant.setDiseaseResult(diseaseResult);
-            plantRepository.save(plant); // 식물 DB에 질병 상태 반영
+            plantRepository.save(plant);
             String message = String.format("[%d번 포트] 식물에 질병이 감지되었습니다. 확인해주세요.", portIndex);
             noticeService.createAnalysisNotice(device, message, NoticeType.SENSOR_ALERT, 1);
         } else if ("healthy".equalsIgnoreCase(diseaseResult) || "no_detection".equalsIgnoreCase(diseaseResult)) {
-            plant.setDiseaseResult(null); // 건강할 경우 질병 상태 초기화
+            plant.setDiseaseResult(null);
             plantRepository.save(plant);
         }
 
-        // 2. 작물별 생육 단계 처리
-        if ("lettuce".equalsIgnoreCase(cropType)) {
-            handleLettuceStage(device, plant, portIndex, plant.getPlantStage(), growthResult);
-        } else {
-            handleTomatoStage(device, plant, portIndex, plant.getPlantStage(), growthResult);
-        }
-    }
+        // ✅ 2. 생육 단계 처리 - 품종별 단계 수(가변)를 지원하는 범용 로직
+        Species species = device.getSpecies();
+        if (species == null) return;
 
-    private void handleLettuceStage(Device device, Plant plant, Integer portIndex,
-                                    PlantStage currentStage, String growthResult) {
-        if ("sprout".equalsIgnoreCase(growthResult) && currentStage == PlantStage.SEED) {
-            plant.setPlantStage(PlantStage.GERMINATION);
-            if (plant.getGerminatedAt() == null) plant.setGerminatedAt(LocalDateTime.now());
-            plantRepository.save(plant);
+        Integer targetIndex = resolveTargetStageIndex(growthResult, species);
+        if (targetIndex == null) return; // 인식 불가("no_detection" 등) → 단계 유지
 
-            String message = String.format("[%d번 포트] 새싹이 발아했습니다!", portIndex);
-            noticeService.createAnalysisNotice(device, message, NoticeType.SYSTEM_NOTICE, 2);
+        int currentIndex = plant.getStageIndex() != null ? plant.getStageIndex() : 0;
+        int maxIndex = species.getStageCount() - 1;
+        int safeTarget = Math.max(0, Math.min(targetIndex, maxIndex));
+
+        // 단계는 뒤로 가지 않음 (오탐지로 인한 후퇴 방지)
+        if (safeTarget <= currentIndex) return;
+
+        plant.setStageIndex(safeTarget);
+
+        // 첫 단계(0)를 벗어나는 순간을 "발아 시점"으로 기록
+        if (currentIndex == 0 && plant.getGerminatedAt() == null) {
+            plant.setGerminatedAt(LocalDateTime.now());
         }
-        if ("growth".equalsIgnoreCase(growthResult) && currentStage == PlantStage.GERMINATION) {
-            plant.setPlantStage(PlantStage.MATURE);
+        // 마지막 단계에 도달하면 "수확(성숙) 시점" 기록
+        if (safeTarget == maxIndex && plant.getMaturedAt() == null) {
             plant.setMaturedAt(LocalDateTime.now());
-            plantRepository.save(plant);
-
-            String message = String.format("[%d번 포트] 수확 시기가 되었습니다!", portIndex);
-            noticeService.createAnalysisNotice(device, message, NoticeType.SYSTEM_NOTICE, 1);
         }
+
+        plantRepository.save(plant);
+
+        String stageName = species.getStageName(safeTarget);
+        String message = safeTarget == maxIndex
+                ? String.format("[%d번 포트] %s 단계에 도달했습니다! 수확 시기를 확인하세요.", portIndex, stageName)
+                : String.format("[%d번 포트] %s 단계로 전환되었습니다!", portIndex, stageName);
+        int priority = safeTarget == maxIndex ? 1 : 2;
+        noticeService.createAnalysisNotice(device, message, NoticeType.SYSTEM_NOTICE, priority);
     }
 
-    private void handleTomatoStage(Device device, Plant plant, Integer portIndex,
-                                   PlantStage currentStage, String growthResult) {
-        if ("sprout".equalsIgnoreCase(growthResult) && currentStage == PlantStage.SEED) {
-            plant.setPlantStage(PlantStage.GERMINATION);
-            if (plant.getGerminatedAt() == null) plant.setGerminatedAt(LocalDateTime.now());
-            plantRepository.save(plant);
+    // ✅ Vision AI가 준 growthResult를 이 품종의 단계 인덱스로 해석
+    // 1) 숫자 문자열이면 그대로 인덱스로 사용 (예: "3")
+    // 2) 품종의 stageNames 중 이름이 일치하면 그 인덱스 사용 (예: "착과")
+    // 3) 둘 다 아니면(예: "no_detection") null 반환하여 단계 변경 안 함
+    private Integer resolveTargetStageIndex(String growthResult, Species species) {
+        if (growthResult == null || growthResult.isBlank()) return null;
+        String trimmed = growthResult.trim();
 
-            String message = String.format("[%d번 포트] 새싹이 발아했습니다!", portIndex);
-            noticeService.createAnalysisNotice(device, message, NoticeType.SYSTEM_NOTICE, 2);
+        if (trimmed.equalsIgnoreCase("no_detection")) return null;
+
+        // 1) 숫자로 온 경우
+        try {
+            return Integer.parseInt(trimmed);
+        } catch (NumberFormatException ignored) {
+            // 숫자가 아니면 아래에서 이름으로 매칭 시도
         }
-        if (growthResult.toLowerCase().matches("level [1-6]") && currentStage == PlantStage.GERMINATION) {
-            plant.setPlantStage(PlantStage.MATURE);
-            plant.setMaturedAt(LocalDateTime.now());
-            plantRepository.save(plant);
 
-            String message = String.format("[%d번 포트] 열매가 발견되었습니다! 수확 시기를 확인하세요.", portIndex);
-            noticeService.createAnalysisNotice(device, message, NoticeType.SYSTEM_NOTICE, 1);
+        // 2) 단계 이름으로 온 경우
+        List<String> stageNames = species.getStageNames();
+        if (stageNames != null) {
+            for (int i = 0; i < stageNames.size(); i++) {
+                if (stageNames.get(i).equalsIgnoreCase(trimmed)) {
+                    return i;
+                }
+            }
         }
-    }
 
-    private String determineCropType(Device device) {
-        String name = device.getSpecies().getName().toLowerCase();
-        if (name.contains("상추") || name.contains("lettuce")) return "lettuce";
-        if (name.contains("토마토") || name.contains("tomato")) return "tomato";
-        return "tomato";
+        // 3) 레거시 호환: 기존 상추/토마토 모델이 쓰던 라벨("sprout","growth")도 계속 인식
+        if (trimmed.equalsIgnoreCase("sprout")) return 1;
+        if (trimmed.equalsIgnoreCase("growth")) return species.getStageCount() - 1;
+
+        return null; // 알 수 없는 라벨은 무시
     }
 
     private String getFileExtension(String fileName) {

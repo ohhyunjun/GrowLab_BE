@@ -8,6 +8,8 @@ import jakarta.validation.constraints.Positive;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Getter
 @NoArgsConstructor
 public class SpeciesRequestDto {
@@ -26,7 +28,6 @@ public class SpeciesRequestDto {
 
     private String aiPromptGuideline;
 
-    // ✅ 재배 기준 (전부 선택 입력)
     private Double minTemperature;
     private Double maxTemperature;
     private Double minHumidity;
@@ -37,4 +38,9 @@ public class SpeciesRequestDto {
     private Double maxTds;
     private Double minLightHours;
     private Double maxLightHours;
+
+    private List<String> stageNames;
+
+    // ✅ 각 단계 시작일 (stageNames와 같은 개수/순서로 맞춰서 보내야 함)
+    private List<Integer> stageDurationDays;
 }

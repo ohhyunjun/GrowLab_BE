@@ -71,7 +71,7 @@ public class UserService {
         findUser.setPassword(passwordEncoder.encode(newPassword));
     }
 
-    // ✅ 비밀번호 찾기(재설정) - 로그인 없이, 이메일 인증 완료 여부로만 검증
+    // 비밀번호 찾기(재설정) - 로그인 없이, 이메일 인증 완료 여부로만 검증
     @Transactional
     public void resetPassword(String email, String newPassword) {
         if (!emailVerificationService.isVerified(email)) {
@@ -83,10 +83,39 @@ public class UserService {
 
         user.setPassword(passwordEncoder.encode(newPassword));
 
-        // 재설정 완료 후 인증 기록 정리 (재사용 방지)
         emailVerificationService.deleteVerification(email);
     }
 
+    // 아이디 찾기 - 이메일 인증 완료 여부로만 검증, 마스킹된 아이디 반환
+    @Transactional
+    public String findUsername(String email) {
+        if (!emailVerificationService.isVerified(email)) {
+            throw new IllegalArgumentException("이메일 인증을 먼저 완료해주세요.");
+        }
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("가입되지 않은 이메일입니다."));
+
+        String masked = maskUsername(user.getUsername());
+
+        emailVerificationService.deleteVerification(email);
+
+        return masked;
+    }
+
+    // 아이디 마스킹: 앞 2자 + *** + 뒤 1자 (짧은 아이디는 더 단순하게 처리)
+    private String maskUsername(String username) {
+        int len = username.length();
+        if (len <= 2) {
+            return username.charAt(0) + "*".repeat(len - 1);
+        }
+        if (len <= 4) {
+            return username.charAt(0) + "*".repeat(len - 2) + username.charAt(len - 1);
+        }
+        return username.substring(0, 2) + "*".repeat(len - 3) + username.charAt(len - 1);
+    }
+
+    // ✅ 회원 탈퇴 - 비밀번호 확인 후 삭제 (누락되어 있던 메서드 복원)
     @Transactional
     public void deleteUser(User user, String password) {
         if (!passwordEncoder.matches(password, user.getPassword())) {

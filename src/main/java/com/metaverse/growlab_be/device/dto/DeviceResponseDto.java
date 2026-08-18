@@ -2,7 +2,6 @@ package com.metaverse.growlab_be.device.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.metaverse.growlab_be.device.domain.Device;
-import com.metaverse.growlab_be.plant.domain.PlantStage;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -21,9 +20,12 @@ public class DeviceResponseDto {
     private Boolean ledMode;
     private String portStatus;
 
-    // ✅ 기기 대표 품종 정보
     private Long speciesId;
     private String speciesName;
+
+    // ✅ 이 기기 대표 품종의 생육 단계 정보 (프론트에서 차트/라벨 그릴 때 사용)
+    private List<String> stageNames;
+    private Integer stageCount;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime lastPhotoAt;
@@ -56,9 +58,10 @@ public class DeviceResponseDto {
         this.ledOnTime      = device.getLedOnTime();
         this.ledOffTime     = device.getLedOffTime();
         this.plants         = plants;
-        // ✅ species가 null일 수 있으므로 null-safe 처리
         this.speciesId      = device.getSpecies() != null ? device.getSpecies().getId()   : null;
         this.speciesName    = device.getSpecies() != null ? device.getSpecies().getName() : null;
+        this.stageNames     = device.getSpecies() != null ? device.getSpecies().getStageNames() : null;
+        this.stageCount     = device.getSpecies() != null ? device.getSpecies().getStageCount() : null;
     }
 
     @Getter
@@ -68,7 +71,10 @@ public class DeviceResponseDto {
         private String     name;
         private Integer    portIndex;
         private String     species;
-        private PlantStage plantStage;
+
+        // ✅ 생육 단계 - 인덱스 + 이 품종에서의 실제 이름
+        private Integer    stageIndex;
+        private String     stageName;
 
         @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
         private LocalDateTime plantedAt;
