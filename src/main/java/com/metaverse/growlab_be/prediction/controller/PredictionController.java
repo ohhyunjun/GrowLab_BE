@@ -21,8 +21,13 @@ public class PredictionController {
         try {
             predictionService.savePrediction(dto);
             return ResponseEntity.status(HttpStatus.CREATED).build();
+        } catch (IllegalStateException e) {
+            // 이미 마지막 생육 단계인 경우
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+            // 누락값, 잘못된 단계, ETA 범위 오류 등
+            return ResponseEntity.badRequest().build();
         }
     }
 
@@ -30,8 +35,15 @@ public class PredictionController {
     @GetMapping("/{plantId}")
     public ResponseEntity<PredictionResponseDto> getLatestPrediction(
             @PathVariable Long plantId) {
-        PredictionResponseDto dto = predictionService.getLatestPrediction(plantId);
-        if (dto == null) return ResponseEntity.noContent().build();
-        return ResponseEntity.ok(dto);
+        try {
+            PredictionResponseDto dto = predictionService.getLatestPrediction(plantId);
+            if (dto == null) {
+                return ResponseEntity.noContent().build();
+            }
+            return ResponseEntity.ok(dto);
+        } catch (IllegalArgumentException e) {
+            // 해당 plantId의 식물이 없는 경우
+            return ResponseEntity.notFound().build();
+        }
     }
 }

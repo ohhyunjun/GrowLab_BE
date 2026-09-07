@@ -22,29 +22,38 @@ public class Prediction extends TimeStamped {
     @JoinColumn(name = "plant_id", nullable = false)
     private Plant plant;
 
-    // LightGBM: 72h 후 예측 단계 (0=SEED, 1=GERMINATION, 2=MATURE)
     @Column(name = "predicted_stage", nullable = false)
     private Integer predictedStage;
 
-    // LightGBM: 신뢰도
+    // q10~q90 예측 범위의 목표 신뢰수준 (현재 0.8)
     @Column(name = "confidence", nullable = false)
     private Float confidence;
 
-    // DeepHit 0→1: 씨앗→발아 예상 시간(시간), SEED 단계일 때만 유효
-    @Column(name = "germination_eta_hours")
-    private Integer germinationEtaHours;
+    // AI 보정 결과인지, 센서 이력 수집 중의 통계 예상인지 구분한다.
+    @Column(name = "prediction_mode")
+    private String predictionMode;
 
-    // DeepHit 1→2: 발아→수확 예상 시간(시간)
-    @Column(name = "mature_eta_hours")
-    private Integer matureEtaHours;
+    // 예측 단계에 빠르게 도달할 경우의 남은 시간
+    @Column(name = "eta_lower_hours")
+    private Integer etaLowerHours;
+
+    // 예측 단계에 늦게 도달할 경우의 남은 시간
+    @Column(name = "eta_upper_hours")
+    private Integer etaUpperHours;
+
+    // 예측 단계에 도달할 가능성이 가장 높은 남은 시간
+    @Column(name = "eta_point_hours")
+    private Integer etaPointHours;
+
 
     public Prediction(Plant plant, Integer predictedStage, Float confidence,
-                      Integer germinationEtaHours, Integer matureEtaHours) {
+                      Integer etaLowerHours, Integer etaPointHours, Integer etaUpperHours) {
         this.plant = plant;
         this.predictedStage = predictedStage;
         this.confidence = confidence;
-        this.germinationEtaHours = germinationEtaHours;
-        this.matureEtaHours = matureEtaHours;
+        this.etaLowerHours = etaLowerHours;
+        this.etaPointHours = etaPointHours;
+        this.etaUpperHours = etaUpperHours;
     }
 
 

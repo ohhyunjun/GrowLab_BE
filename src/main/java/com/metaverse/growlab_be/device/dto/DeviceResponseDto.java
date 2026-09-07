@@ -25,6 +25,7 @@ public class DeviceResponseDto {
 
     // ✅ 이 기기 대표 품종의 생육 단계 정보 (프론트에서 차트/라벨 그릴 때 사용)
     private List<String> stageNames;
+    private List<Integer> stageDurationDays;
     private Integer stageCount;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
@@ -62,6 +63,7 @@ public class DeviceResponseDto {
         this.speciesName    = device.getSpecies() != null ? device.getSpecies().getName() : null;
         this.stageNames     = device.getSpecies() != null ? device.getSpecies().getStageNames() : null;
         this.stageCount     = device.getSpecies() != null ? device.getSpecies().getStageCount() : null;
+        this.stageDurationDays = device.getSpecies() != null ? device.getSpecies().getStageDurationDays() : null;
     }
 
     @Getter
