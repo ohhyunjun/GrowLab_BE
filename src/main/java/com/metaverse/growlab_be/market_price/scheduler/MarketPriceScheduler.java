@@ -15,7 +15,7 @@ public class MarketPriceScheduler {
 
     // 매일 오전 6시에 자동으로 실행되어 외부 API 데이터를 동기화하는 스케줄러
     // cron 표현식: 초 분 시 일 월 요일
-    @Scheduled(cron = "0 0 6 * * *")
+    @Scheduled(cron = "0 0 6 * * *", zone = "Asia/Seoul")
     public void collectionMarketPriceJob() {
         log.info("=== 농산물 도소매 가격 데이터 동기화 스케줄러 시작 ===");
         try {
