@@ -32,7 +32,8 @@ public class PhotoController {
         try {
             plantService.applyObservation(
                     responseDto.getDeviceSerialNumber(), requestDto.getPortIndex(),
-                    responseDto.getGrowthResult(), responseDto.getDiseaseResult());
+                    responseDto.getGrowthResult(), responseDto.getConfidence(),
+                    responseDto.getDiseaseResult(), responseDto.getDiseaseConfidence());
         } catch (RuntimeException e) {
             // 식물 상태 반영에 실패해도 저장된 사진은 유지
             log.error("사진 저장 후 식물 상태 반영 실패 - photoId: {}, portIndex: {}",

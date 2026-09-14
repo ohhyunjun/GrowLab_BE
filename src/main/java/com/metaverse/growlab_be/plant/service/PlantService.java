@@ -28,6 +28,9 @@ public class PlantService {
     private final DeviceRepository deviceRepository;
     private final NoticeService noticeService;
 
+    private static final double DISEASE_MIN_CONFIDENCE = 0.60;
+    private static final double GROWTH_STAGE_MIN_CONFIDENCE = 0.70;
+
     @Transactional
     public PlantResponseDto createPlant(PlantRequestDto plantRequestDto, User user) {
         Device device = findDeviceOwnedByUser(plantRequestDto.getSerialNumber(), user);
@@ -90,7 +93,8 @@ public class PlantService {
     // 관측 결과를 해당 기기·포트의 식물 상태에 반영
     @Transactional
     public void applyObservation(String serialNumber, Integer portIndex,
-                                 String growthResult, String diseaseResult) {
+                                 String growthResult, Double growthConfidence,
+                                 String diseaseResult, Double diseaseConfidence) {
         Device device = deviceRepository.findById(serialNumber)
                 .orElseThrow(() -> new IllegalArgumentException("등록되지 않은 기기입니다: " + serialNumber));
 
@@ -100,15 +104,23 @@ public class PlantService {
 
         if (optionalPlant.isPresent()) {
             Plant plant = optionalPlant.get();
-            updatePlantStageAndNotice(device, plant, portIndex, growthResult, diseaseResult);
+            updatePlantStageAndNotice(device, plant, portIndex,
+                    growthResult, growthConfidence, diseaseResult, diseaseConfidence);
         }
     }
 
     private void updatePlantStageAndNotice(Device device, Plant plant, Integer portIndex,
-                                           String growthResult, String diseaseResult) {
+                                           String growthResult, Double growthConfidence,
+                                           String diseaseResult, Double diseaseConfidence) {
 
         // 1. 질병 상태 업데이트
-        if ("disease".equalsIgnoreCase(diseaseResult)) {
+        boolean diseaseDetected = diseaseResult != null
+                && !"no_detection".equalsIgnoreCase(diseaseResult)
+                && !"healthy".equalsIgnoreCase(diseaseResult);
+
+        if (diseaseDetected
+                && diseaseConfidence != null
+                && diseaseConfidence >= DISEASE_MIN_CONFIDENCE) {
             plant.setDiseaseResult(diseaseResult);
             plantRepository.save(plant);
 
@@ -119,13 +131,15 @@ public class PlantService {
             plant.setDiseaseResult(null);
             plantRepository.save(plant);
         }
-        // no_detection, null, 알 수 없는 결과는 기존 질병 상태 유지
+        // no_detection, null, 신뢰도 미달은 기존 질병 상태 유지
 
         // 2. 품종별 생육 단계 처리
         Species species = device.getSpecies();
         if (species == null) return;
 
-        Integer targetIndex = resolveTargetStageIndex(growthResult, species);
+        if (growthConfidence == null || growthConfidence < GROWTH_STAGE_MIN_CONFIDENCE) return;
+
+        Integer targetIndex = resolveTargetStageIndex(growthResult);
         if (targetIndex == null) return;
 
         int currentIndex = plant.getStageIndex() != null ? plant.getStageIndex() : 0;
@@ -159,8 +173,8 @@ public class PlantService {
         noticeService.createAnalysisNotice(device, message, NoticeType.SYSTEM_NOTICE, priority);
     }
 
-    // 관측된 growthResult를 품종의 단계 인덱스로 해석
-    private Integer resolveTargetStageIndex(String growthResult, Species species) {
+    // 숫자 인덱스를 우선하고, 문자열 라벨은 정식=1/생육=2/수확=3으로 고정한다.
+    private Integer resolveTargetStageIndex(String growthResult) {
         if (growthResult == null || growthResult.isBlank()) return null;
         String trimmed = growthResult.trim();
 
@@ -170,22 +184,13 @@ public class PlantService {
         try {
             return Integer.parseInt(trimmed);
         } catch (NumberFormatException ignored) {
-            // 숫자가 아니면 아래에서 이름으로 매칭 시도
+            // 숫자가 아니면 아래의 고정 라벨 매핑을 사용한다.
         }
 
-        // 2. 단계 이름으로 온 경우
-        List<String> stageNames = species.getStageNames();
-        if (stageNames != null) {
-            for (int i = 0; i < stageNames.size(); i++) {
-                if (stageNames.get(i).equalsIgnoreCase(trimmed)) {
-                    return i;
-                }
-            }
-        }
-
-        // 3. 기존 모델 라벨 호환
-        if (trimmed.equalsIgnoreCase("sprout")) return 1;
-        if (trimmed.equalsIgnoreCase("growth")) return species.getStageCount() - 1;
+        // 2. 기존 모델 및 한글/영문 라벨 호환
+        if (trimmed.equalsIgnoreCase("정식기") || trimmed.equalsIgnoreCase("Planting") || trimmed.equalsIgnoreCase("sprout")) return 1;
+        if (trimmed.equalsIgnoreCase("생육기") || trimmed.equalsIgnoreCase("Growing") || trimmed.equalsIgnoreCase("growth")) return 2;
+        if (trimmed.equalsIgnoreCase("수확기") || trimmed.equalsIgnoreCase("Harvest")) return 3;
 
         return null;
     }
