@@ -7,6 +7,8 @@ public class PredictionRequestDto {
     private Long    plant_id;
     private Integer predicted_stage;
     private Float   confidence;
-    private Integer germination_eta_hours;
-    private Integer mature_eta_hours;
+    private String  prediction_mode;
+    private Integer eta_lower_hours;
+    private Integer eta_upper_hours;
+    private Integer eta_point_hours;
 }

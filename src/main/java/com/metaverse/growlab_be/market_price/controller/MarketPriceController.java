@@ -36,7 +36,7 @@ public class MarketPriceController {
     }
 
     /**
-     * 최근 7일 가격 조회
+     * 최근 7개 거래일 가격 조회
      * 예: /api/prices/weekly?itemCode=422&kindCode=00&marketType=RETAIL
      *     /api/prices/weekly?itemCode=422&kindCode=00&marketType=WHOLESALE
      */
@@ -56,7 +56,7 @@ public class MarketPriceController {
     }
 
     /**
-     * 수동 가격 수집 (어제 하루치)
+     * 수동 가격 수집 (최근 14일 재확인, 중복 제외)
      * POST /api/prices/fetch
      */
     @PostMapping("/fetch")

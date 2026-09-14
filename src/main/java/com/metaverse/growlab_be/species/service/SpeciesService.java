@@ -3,8 +3,10 @@ package com.metaverse.growlab_be.species.service;
 import com.metaverse.growlab_be.species.domain.Species;
 import com.metaverse.growlab_be.species.dto.SpeciesRequestDto;
 import com.metaverse.growlab_be.species.dto.SpeciesResponseDto;
+import com.metaverse.growlab_be.species.event.SpeciesThresholdsUpdatedEvent;
 import com.metaverse.growlab_be.species.repository.SpeciesRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.metaverse.growlab_be.device.repository.DeviceRepository;
@@ -17,6 +19,7 @@ public class SpeciesService {
 
     private final SpeciesRepository speciesRepository;
     private final DeviceRepository deviceRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     // (관리자) 새 품종 등록
     @Transactional
@@ -52,6 +55,7 @@ public class SpeciesService {
         }
 
         species.update(speciesRequestDto);
+        eventPublisher.publishEvent(new SpeciesThresholdsUpdatedEvent(species.getId()));
         return new SpeciesResponseDto(species);
     }
 

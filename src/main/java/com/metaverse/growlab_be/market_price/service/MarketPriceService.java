@@ -10,6 +10,7 @@ import com.metaverse.growlab_be.market_price.repository.MarketPriceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -25,6 +26,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class MarketPriceService {
+
+    private static final int PRICE_HISTORY_TRADING_DAYS = 7;
+    private static final int COLLECTION_LOOKBACK_DAYS = 14;
 
     private final MarketPriceRepository marketPriceRepository;
     private final CropCodeRepository cropCodeRepository;
@@ -52,15 +56,21 @@ public class MarketPriceService {
                                 + ", marketType=" + marketType));
     }
 
-    /**
-     * 특정 품목/품종/거래유형 최근 7일 가격 내역
-     */
+    /** 특정 품목/품종/거래유형의 최근 7개 실제 거래일 가격 내역. */
     public List<MarketPrice> getWeeklyPrices(String itemCode, String kindCode,
                                              MarketPrice.MarketType marketType) {
-        LocalDate startDate = LocalDate.now().minusDays(6);
+        List<LocalDate> latestTradingDates = marketPriceRepository.findLatestDistinctPriceDates(
+                itemCode,
+                kindCode,
+                marketType,
+                PageRequest.of(0, PRICE_HISTORY_TRADING_DAYS)
+        );
+
+        if (latestTradingDates.isEmpty()) return List.of();
+
         return marketPriceRepository
-                .findByItemCodeAndKindCodeAndMarketTypeAndPriceDateGreaterThanEqualOrderByPriceDateAsc(
-                        itemCode, kindCode, marketType, startDate);
+                .findByItemCodeAndKindCodeAndMarketTypeAndPriceDateInOrderByPriceDateAsc(
+                        itemCode, kindCode, marketType, latestTradingDates);
     }
 
     // ─── 수집 ────────────────────────────────────────────────
@@ -80,8 +90,8 @@ public class MarketPriceService {
 
         for (CropCode cropCode : cropCodes) {
             try {
-                int retailSaved    = fetchAndSave(cropCode, MarketPrice.MarketType.RETAIL);
-                int wholesaleSaved = fetchAndSave(cropCode, MarketPrice.MarketType.WHOLESALE);
+                int retailSaved    = fetchAndSaveRecent(cropCode, MarketPrice.MarketType.RETAIL);
+                int wholesaleSaved = fetchAndSaveRecent(cropCode, MarketPrice.MarketType.WHOLESALE);
                 totalSaved += retailSaved + wholesaleSaved;
             } catch (Exception e) {
                 log.error("[MarketPrice] 수집 실패 - itemCode: {}, kindCode: {}, error: {}",
@@ -119,11 +129,12 @@ public class MarketPriceService {
         log.info("[MarketPrice] 날짜 범위 수집 완료 - 총 {}건 저장", totalSaved);
     }
 
-    private int fetchAndSave(CropCode cropCode, MarketPrice.MarketType marketType) {
+    private int fetchAndSaveRecent(CropCode cropCode, MarketPrice.MarketType marketType) {
         LocalDate yesterday = LocalDate.now().minusDays(1);
+        LocalDate startDate = yesterday.minusDays(COLLECTION_LOOKBACK_DAYS - 1L);
 
         MarketPriceRequestDto request = MarketPriceRequestDto.builder()
-                .startDate(yesterday)
+                .startDate(startDate)
                 .endDate(yesterday)
                 .itemCategoryCode(cropCode.getItemCategoryCode())
                 .itemCode(cropCode.getItemCode())

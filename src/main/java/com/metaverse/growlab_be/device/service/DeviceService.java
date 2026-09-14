@@ -9,6 +9,10 @@ import com.metaverse.growlab_be.photo.repository.PhotoRepository;
 import com.metaverse.growlab_be.species.domain.Species;
 import com.metaverse.growlab_be.species.repository.SpeciesRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +22,7 @@ import java.util.Comparator;
 import java.util.List;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class DeviceService {
@@ -25,6 +30,21 @@ public class DeviceService {
     private final DeviceRepository deviceRepository;
     private final PhotoRepository  photoRepository;
     private final SpeciesRepository speciesRepository;
+    private final ObjectProvider<MqttPublisher> mqttPublisherProvider;
+
+    // 배포 전에 이미 품종이 지정돼 있던 기기도 retained thresholds를 받도록 재발행한다.
+    @EventListener(ApplicationReadyEvent.class)
+    public void publishRetainedThresholdsOnStartup() {
+        mqttPublisherProvider.ifAvailable(publisher ->
+                deviceRepository.findAll().forEach(device -> {
+                    try {
+                        publisher.publishThresholds(device.getId(), device.getSpecies());
+                    } catch (RuntimeException e) {
+                        log.warn("[MQTT] 시작 시 thresholds 동기화 실패 - serial={}", device.getId(), e);
+                    }
+                })
+        );
+    }
 
     public List<DeviceResponseDto> getUserDevices(User user) {
         List<Device> devices = deviceRepository.findByUserId(user.getId());
@@ -86,6 +106,10 @@ public class DeviceService {
         device.setUser(null);
         device.setSpecies(null);
         device.setPortStatus("00000000");
+
+        // retained 메시지에 이전 품종 범위가 남지 않도록 제한 없음 값으로 초기화한다.
+        mqttPublisherProvider.ifAvailable(publisher ->
+                publisher.publishThresholds(serialNumber, null));
     }
 
     @Transactional
@@ -99,19 +123,34 @@ public class DeviceService {
     public void updatePhotoInterval(String serialNumber, Integer photoInterval, User user) {
         Device device = findDeviceOwnedByUser(serialNumber, user);
         device.setPhotoInterval(photoInterval);
+        mqttPublisherProvider.ifAvailable(publisher ->
+                publisher.publishPhotoInterval(serialNumber, photoInterval));
     }
 
     @Transactional
     public void controlLed(String serialNumber, LedRequestDto requestDto, User user) {
         Device device = findDeviceOwnedByUser(serialNumber, user);
+        String command;
+
         if (Boolean.TRUE.equals(requestDto.getLedMode())) {
+            if (requestDto.getLedOnTime() == null || requestDto.getLedOffTime() == null) {
+                throw new IllegalArgumentException("LED 스케줄 시간은 필수입니다.");
+            }
             device.setLedMode(true);
             device.setLedOnTime(requestDto.getLedOnTime());
             device.setLedOffTime(requestDto.getLedOffTime());
+            command = "SCHED:" + requestDto.getLedOnTime() + "-" + requestDto.getLedOffTime();
         } else {
+            if (requestDto.getLedStatus() == null) {
+                throw new IllegalArgumentException("수동 LED 상태는 필수입니다.");
+            }
             device.setLedMode(false);
             device.setLedStatus(requestDto.getLedStatus());
+            command = Boolean.TRUE.equals(requestDto.getLedStatus()) ? "O" : "o";
         }
+
+        mqttPublisherProvider.ifAvailable(publisher ->
+                publisher.publishCommand(serialNumber, command));
     }
 
     @Transactional
@@ -135,6 +174,9 @@ public class DeviceService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 품종입니다: " + speciesId));
 
         device.setSpecies(species);
+
+        mqttPublisherProvider.ifAvailable(publisher ->
+                publisher.publishThresholds(serialNumber, species));
 
         List<DeviceResponseDto.PlantSummaryDto> plantSummaries = device.getPlants().stream()
                 .map(p -> buildPlantSummary(device, p))
