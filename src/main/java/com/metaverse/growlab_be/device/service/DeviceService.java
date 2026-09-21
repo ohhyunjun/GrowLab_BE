@@ -196,6 +196,7 @@ public class DeviceService {
                 species != null ? species.getName() : null,
                 p.getStageIndex(),
                 species != null ? species.getStageName(p.getStageIndex()) : null,
+                p.getDiseaseResult(),
                 p.getPlantedAt(),
                 p.getGerminatedAt(),
                 p.getMaturedAt()

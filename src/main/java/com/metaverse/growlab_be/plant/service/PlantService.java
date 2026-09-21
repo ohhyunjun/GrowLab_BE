@@ -116,7 +116,7 @@ public class PlantService {
         // 1. 질병 상태 업데이트
         boolean diseaseDetected = diseaseResult != null
                 && !"no_detection".equalsIgnoreCase(diseaseResult)
-                && !"healthy".equalsIgnoreCase(diseaseResult);
+                && !isHealthyLabel(diseaseResult);
 
         if (diseaseDetected
                 && diseaseConfidence != null
@@ -127,7 +127,7 @@ public class PlantService {
             String message = String.format("[%d번 포트] 식물에 질병이 감지되었습니다. 확인해주세요.", portIndex);
             noticeService.createAnalysisNotice(device, message, NoticeType.SENSOR_ALERT, 1);
 
-        } else if ("healthy".equalsIgnoreCase(diseaseResult)) {
+        } else if (isHealthyLabel(diseaseResult)) {
             plant.setDiseaseResult(null);
             plantRepository.save(plant);
         }
@@ -171,6 +171,13 @@ public class PlantService {
         int priority = safeTarget == maxIndex ? 1 : 2;
 
         noticeService.createAnalysisNotice(device, message, NoticeType.SYSTEM_NOTICE, priority);
+    }
+
+    // 질병 모델의 정상 라벨은 환경/버전에 따라 "healthy" 또는 "Normal"로 온다. 둘 다 정상으로 처리한다.
+    private boolean isHealthyLabel(String diseaseResult) {
+        if (diseaseResult == null) return false;
+        String trimmed = diseaseResult.trim();
+        return trimmed.equalsIgnoreCase("healthy") || trimmed.equalsIgnoreCase("normal");
     }
 
     // 숫자 인덱스를 우선하고, 문자열 라벨은 정식=1/생육=2/수확=3으로 고정한다.

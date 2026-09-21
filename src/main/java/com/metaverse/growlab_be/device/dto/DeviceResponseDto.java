@@ -96,6 +96,9 @@ public class DeviceResponseDto {
         private Integer    stageIndex;
         private String     stageName;
 
+        // 최근 관측된 질병 결과 (없으면 null). 포트 헬스 표시/문제 분석에 사용.
+        private String     diseaseResult;
+
         @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
         private LocalDateTime plantedAt;
 

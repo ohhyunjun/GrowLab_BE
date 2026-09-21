@@ -1,5 +1,6 @@
 package com.metaverse.growlab_be.photo.controller;
 
+import com.metaverse.growlab_be.photo.dto.GrowthTrendResponseDto;
 import com.metaverse.growlab_be.photo.dto.PhotoRequestDto;
 import com.metaverse.growlab_be.photo.dto.PhotoResponseDto;
 import com.metaverse.growlab_be.photo.service.PhotoService;
@@ -47,5 +48,17 @@ public class PhotoController {
     public ResponseEntity<PhotoResponseDto> getLatestPhoto() {
         PhotoResponseDto responseDto = photoService.findLatestPhoto();
         return ResponseEntity.ok(responseDto);
+    }
+
+    // 프론트 → 포트별 성장 추이(관측 크기) + 또래 비교 조회
+    @GetMapping("/photos/growth-trend")
+    public ResponseEntity<GrowthTrendResponseDto> getGrowthTrend(
+            @RequestParam String serialNumber,
+            @RequestParam Integer portIndex) {
+        try {
+            return ResponseEntity.ok(photoService.getGrowthTrend(serialNumber, portIndex));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 }

@@ -26,6 +26,9 @@ public interface PlantRepository extends JpaRepository<Plant,Long> {
     // 디바이스로 식물 조회
     Optional<Plant> findByDeviceIdAndPortIndex(String deviceSerial, Integer portIndex);
 
+    // 기기에 등록된 모든 식물(= 사용 중인 포트). 성장 추이의 또래 비교에서 빈 포트를 걸러내는 데 쓴다.
+    List<Plant> findByDeviceId(String deviceSerial);
+
     // ✅ 특정 생육 단계(인덱스)에 있는 모든 식물 조회 (품종마다 단계 수가 달라 PlantStage enum 대신 stageIndex 사용)
     List<Plant> findByStageIndex(Integer stageIndex);
 }

@@ -19,4 +19,8 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
 
     List<Photo> findByDevice(Device device);
     void deleteByDevice(Device device);
+
+    // 성장 추이(관측 크기)용 — boxAreaRatio가 있는 사진만 오래된→최신 순.
+    // 포트별 시계열과 또래 평균을 서비스에서 계산한다.
+    List<Photo> findByDeviceAndBoxAreaRatioIsNotNullOrderByCreatedAtAsc(Device device);
 }
