@@ -23,6 +23,8 @@ public interface PlantRepository extends JpaRepository<Plant,Long> {
 
     boolean existsByDeviceId(String deviceId);
 
+    boolean existsBySpecies_Id(Long speciesId);
+
     // 디바이스로 식물 조회
     Optional<Plant> findByDeviceIdAndPortIndex(String deviceSerial, Integer portIndex);
 

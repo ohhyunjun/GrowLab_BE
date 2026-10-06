@@ -2,9 +2,9 @@ package com.metaverse.growlab_be.plant.domain;
 
 import com.metaverse.growlab_be.common.domain.TimeStamped;
 import com.metaverse.growlab_be.device.domain.Device;
-import com.metaverse.growlab_be.diary.domain.Diary;
 import com.metaverse.growlab_be.plant.dto.PlantRequestDto;
 import com.metaverse.growlab_be.prediction.domain.Prediction;
+import com.metaverse.growlab_be.species.domain.Species;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -42,7 +42,7 @@ public class Plant extends TimeStamped {
     @Column
     private LocalDateTime maturedAt;
 
-    // ✅ 몇 번째 생육 단계인지 (0부터 시작). 실제 이름은 Device.species.getStageName(stageIndex)로 조회
+    // 몇 번째 생육 단계인지 (0부터 시작). 실제 이름은 이 식물의 품종에서 조회한다.
     @Column(nullable = false, name = "stage_index")
     private Integer stageIndex = 0;
 
@@ -55,12 +55,13 @@ public class Plant extends TimeStamped {
     @OneToMany(mappedBy = "plant", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Prediction> predictions = new ArrayList<>();
 
-    @OneToMany(mappedBy = "plant", cascade = CascadeType.ALL, orphanRemoval = true)
-    List<Diary> diaries = new ArrayList<>();
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "device_serial", nullable = false)
     private Device device;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "species_id", nullable = false, foreignKey = @ForeignKey(name = "fk_plant_species"))
+    private Species species;
 
     public Plant(PlantRequestDto plantRequestDto, Device device) {
         this.name = plantRequestDto.getName();

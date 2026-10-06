@@ -9,7 +9,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.metaverse.growlab_be.plant.repository.PlantRepository;
 import com.metaverse.growlab_be.device.repository.DeviceRepository;
+import com.metaverse.growlab_be.plant.domain.Plant;
 
 import java.util.List;
 
@@ -18,6 +20,7 @@ import java.util.List;
 public class SpeciesService {
 
     private final SpeciesRepository speciesRepository;
+    private final PlantRepository plantRepository;
     private final DeviceRepository deviceRepository;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -29,6 +32,7 @@ public class SpeciesService {
         });
 
         Species newSpecies = new Species(speciesrequestDto);
+        SharedEnvironment.validateSpecies(newSpecies);
         Species savedSpecies = speciesRepository.save(newSpecies);
 
         return new SpeciesResponseDto(savedSpecies);
@@ -54,6 +58,19 @@ public class SpeciesService {
             });
         }
 
+        Species proposed = new Species(speciesRequestDto);
+        SharedEnvironment.validateSpecies(proposed);
+        deviceRepository.findAll().forEach(device -> {
+            List<Plant> plants = device.getPlants();
+            boolean usesUpdated = plants.stream().anyMatch(plant -> plant.getSpecies().getId().equals(id));
+            boolean mixed = plants.stream().anyMatch(plant -> !plant.getSpecies().getId().equals(id));
+            if (usesUpdated && mixed) {
+                List<Species> combination = plants.stream()
+                        .map(plant -> plant.getSpecies().getId().equals(id) ? proposed : plant.getSpecies())
+                        .toList();
+                SharedEnvironment.requireMixedCompatibility(combination);
+            }
+        });
         species.update(speciesRequestDto);
         eventPublisher.publishEvent(new SpeciesThresholdsUpdatedEvent(species.getId()));
         return new SpeciesResponseDto(species);
@@ -64,8 +81,8 @@ public class SpeciesService {
     public void deleteSpecies(Long id) {
         Species species = findSpeciesById(id);
 
-        if (deviceRepository.existsBySpecies_Id(id)) {
-            throw new IllegalStateException("해당 품종을 사용하는 기기가 존재하여 삭제할 수 없습니다.");
+        if (plantRepository.existsBySpecies_Id(id)) {
+            throw new IllegalStateException("해당 품종을 사용하는 식물이 존재하여 삭제할 수 없습니다.");
         }
 
         speciesRepository.delete(species);

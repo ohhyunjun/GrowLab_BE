@@ -1,8 +1,10 @@
 package com.metaverse.growlab_be.species.service;
 
 import com.metaverse.growlab_be.device.domain.Device;
+import com.metaverse.growlab_be.plant.domain.Plant;
 import com.metaverse.growlab_be.device.repository.DeviceRepository;
 import com.metaverse.growlab_be.device.service.MqttPublisher;
+import com.metaverse.growlab_be.plant.repository.PlantRepository;
 import com.metaverse.growlab_be.species.domain.Category;
 import com.metaverse.growlab_be.species.domain.Difficulty;
 import com.metaverse.growlab_be.species.domain.Species;
@@ -27,11 +29,11 @@ class SpeciesThresholdMqttListenerTest {
     @Test
     void speciesUpdatePublishesAfterCommitEvent() {
         SpeciesRepository speciesRepository = mock(SpeciesRepository.class);
-        DeviceRepository deviceRepository = mock(DeviceRepository.class);
         ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
         SpeciesService service = new SpeciesService(
                 speciesRepository,
-                deviceRepository,
+                mock(PlantRepository.class),
+                mock(DeviceRepository.class),
                 eventPublisher
         );
 
@@ -77,14 +79,20 @@ class SpeciesThresholdMqttListenerTest {
         Species species = species(7L);
         Device first = new Device("GROWLAB-G111", "첫 번째");
         Device second = new Device("GROWLAB-G222", "두 번째");
+        Plant firstPlant = new Plant();
+        firstPlant.setSpecies(species);
+        first.getPlants().add(firstPlant);
+        Plant secondPlant = new Plant();
+        secondPlant.setSpecies(species);
+        second.getPlants().add(secondPlant);
         when(provider.getIfAvailable()).thenReturn(mqttPublisher);
         when(speciesRepository.findById(7L)).thenReturn(Optional.of(species));
-        when(deviceRepository.findBySpecies_Id(7L)).thenReturn(List.of(first, second));
+        when(deviceRepository.findAll()).thenReturn(List.of(first, second));
 
         listener.publishUpdatedThresholds(new SpeciesThresholdsUpdatedEvent(7L));
 
-        verify(mqttPublisher).publishThresholds("GROWLAB-G111", species);
-        verify(mqttPublisher).publishThresholds("GROWLAB-G222", species);
+        verify(mqttPublisher).publishThresholdsForPlants("GROWLAB-G111", first.getPlants());
+        verify(mqttPublisher).publishThresholdsForPlants("GROWLAB-G222", second.getPlants());
     }
 
     private Species species(Long id) {

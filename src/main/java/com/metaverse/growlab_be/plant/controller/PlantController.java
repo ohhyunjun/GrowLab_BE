@@ -65,6 +65,16 @@ public class PlantController {
         return ResponseEntity.ok(plantResponseDto);
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<String> invalidPlant(IllegalArgumentException error) {
+        return ResponseEntity.badRequest().body(error.getMessage());
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<String> incompatiblePlant(IllegalStateException error) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error.getMessage());
+    }
+
     // 6. 식물 삭제 (DELETE /api/plants/{plantId})
     @DeleteMapping("/{plantId}")
     public ResponseEntity<Void> deletePlant(

@@ -3,6 +3,7 @@ package com.metaverse.growlab_be.plant.service;
 import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.device.domain.Device;
 import com.metaverse.growlab_be.device.repository.DeviceRepository;
+import com.metaverse.growlab_be.device.service.MqttPublisher;
 import com.metaverse.growlab_be.notice.domain.NoticeType;
 import com.metaverse.growlab_be.notice.service.NoticeService;
 import com.metaverse.growlab_be.plant.domain.Plant;
@@ -10,7 +11,10 @@ import com.metaverse.growlab_be.plant.dto.PlantRequestDto;
 import com.metaverse.growlab_be.plant.dto.PlantResponseDto;
 import com.metaverse.growlab_be.plant.repository.PlantRepository;
 import com.metaverse.growlab_be.species.domain.Species;
+import com.metaverse.growlab_be.species.repository.SpeciesRepository;
+import com.metaverse.growlab_be.species.service.SharedEnvironment;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,7 +30,9 @@ public class PlantService {
 
     private final PlantRepository plantRepository;
     private final DeviceRepository deviceRepository;
+    private final SpeciesRepository speciesRepository;
     private final NoticeService noticeService;
+    private final ObjectProvider<MqttPublisher> mqttPublisherProvider;
 
     private static final double DISEASE_MIN_CONFIDENCE = 0.60;
     private static final double GROWTH_STAGE_MIN_CONFIDENCE = 0.70;
@@ -35,19 +41,39 @@ public class PlantService {
     public PlantResponseDto createPlant(PlantRequestDto plantRequestDto, User user) {
         Device device = findDeviceOwnedByUser(plantRequestDto.getSerialNumber(), user);
 
-        if (plantRepository.existsByDeviceIdAndPortIndex(device.getId(), plantRequestDto.getPortIndex())) {
-            throw new IllegalArgumentException(plantRequestDto.getPortIndex() + "번 포트에는 이미 식물이 등록되어 있습니다.");
+        Integer portIndex = plantRequestDto.getPortIndex();
+        if (portIndex == null || portIndex < 0 || portIndex > 7) {
+            throw new IllegalArgumentException("포트 번호는 0부터 7까지여야 합니다.");
+        }
+        if (plantRepository.existsByDeviceIdAndPortIndex(device.getId(), portIndex)) {
+            throw new IllegalArgumentException(portIndex + "번 포트에는 이미 식물이 등록되어 있습니다.");
         }
 
-        if (device.getSpecies() == null) {
-            throw new IllegalArgumentException("기기에 재배 품종을 먼저 설정해야 합니다.");
+        if (plantRequestDto.getSpeciesId() == null) {
+            throw new IllegalArgumentException("심을 품종을 선택해주세요.");
+        }
+        Species species = speciesRepository.findById(plantRequestDto.getSpeciesId())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 품종입니다."));
+
+        List<Plant> existing = plantRepository.findByDeviceId(device.getId());
+        boolean mixing = existing.stream().anyMatch(item -> !item.getSpecies().getId().equals(species.getId()));
+        if (mixing) {
+            List<Species> combination = new java.util.ArrayList<>(existing.stream().map(Plant::getSpecies).toList());
+            combination.add(species);
+            SharedEnvironment.requireMixedCompatibility(combination);
         }
 
+        String sharedName = existing.stream()
+                .filter(item -> item.getSpecies().getId().equals(species.getId()))
+                .map(Plant::getName).findFirst().orElse(null);
+        String requestedName = plantRequestDto.getName() == null ? "" : plantRequestDto.getName().trim();
         Plant plant = new Plant(plantRequestDto, device);
-        // ✅ 요청된 단계가 이 품종의 단계 범위를 벗어나면 안전하게 보정
-        plant.setStageIndex(clampStageIndex(device, plantRequestDto.getStageIndex()));
+        plant.setName(sharedName != null ? sharedName : requestedName.isEmpty() ? species.getName() : requestedName);
+        plant.setSpecies(species);
+        plant.setStageIndex(clampStageIndex(species, plantRequestDto.getStageIndex()));
 
-        Plant savedPlant = plantRepository.save(plant);
+        Plant savedPlant = plantRepository.saveAndFlush(plant);
+        publishThresholdsForPlants(device);
         return new PlantResponseDto(savedPlant);
     }
 
@@ -67,7 +93,8 @@ public class PlantService {
     public PlantResponseDto updatePlant(Long plantId, PlantRequestDto plantRequestDto, User user) {
         Plant plant = findPlantOwnedByUser(plantId, user);
         plant.update(plantRequestDto);
-        plant.setStageIndex(clampStageIndex(plant.getDevice(), plantRequestDto.getStageIndex()));
+        syncSpeciesNickname(plant, plantRequestDto.getName());
+        plant.setStageIndex(clampStageIndex(plant.getSpecies(), plantRequestDto.getStageIndex()));
         return new PlantResponseDto(plant);
     }
 
@@ -75,9 +102,9 @@ public class PlantService {
     public PlantResponseDto patchPlant(Long plantId, PlantRequestDto plantRequestDto, User user) {
         Plant plant = findPlantOwnedByUser(plantId, user);
 
-        if (plantRequestDto.getName() != null) plant.setName(plantRequestDto.getName());
+        if (plantRequestDto.getName() != null) syncSpeciesNickname(plant, plantRequestDto.getName());
         if (plantRequestDto.getStageIndex() != null) {
-            plant.setStageIndex(clampStageIndex(plant.getDevice(), plantRequestDto.getStageIndex()));
+            plant.setStageIndex(clampStageIndex(plant.getSpecies(), plantRequestDto.getStageIndex()));
         }
         if (plantRequestDto.getPlantedAt() != null) plant.setPlantedAt(plantRequestDto.getPlantedAt());
 
@@ -87,7 +114,10 @@ public class PlantService {
     @Transactional
     public void deletePlant(Long plantId, User user) {
         Plant plant = findPlantOwnedByUser(plantId, user);
+        Device device = plant.getDevice();
         plantRepository.delete(plant);
+        plantRepository.flush();
+        publishThresholdsForPlants(device);
     }
 
     // 관측 결과를 해당 기기·포트의 식물 상태에 반영
@@ -124,8 +154,8 @@ public class PlantService {
             plant.setDiseaseResult(diseaseResult);
             plantRepository.save(plant);
 
-            String message = String.format("[%d번 포트] 식물에 질병이 감지되었습니다. 확인해주세요.", portIndex);
-            noticeService.createAnalysisNotice(device, message, NoticeType.SENSOR_ALERT, 1);
+            String message = String.format("[P%d] 식물에 질병이 감지되었습니다. 확인해주세요.", portIndex + 1);
+            noticeService.createAnalysisNotice(device, plant, message, NoticeType.SENSOR_ALERT, 1);
 
         } else if (isHealthyLabel(diseaseResult)) {
             plant.setDiseaseResult(null);
@@ -134,7 +164,7 @@ public class PlantService {
         // no_detection, null, 신뢰도 미달은 기존 질병 상태 유지
 
         // 2. 품종별 생육 단계 처리
-        Species species = device.getSpecies();
+        Species species = plant.getSpecies();
         if (species == null) return;
 
         if (growthConfidence == null || growthConfidence < GROWTH_STAGE_MIN_CONFIDENCE) return;
@@ -166,11 +196,11 @@ public class PlantService {
         // 3. 상태 변경 알림 요청
         String stageName = species.getStageName(safeTarget);
         String message = safeTarget == maxIndex
-                ? String.format("[%d번 포트] %s 단계에 도달했습니다! 수확 시기를 확인하세요.", portIndex, stageName)
-                : String.format("[%d번 포트] %s 단계로 전환되었습니다!", portIndex, stageName);
+                ? String.format("[P%d] %s 단계에 도달했습니다! 수확 시기를 확인하세요.", portIndex + 1, stageName)
+                : String.format("[P%d] %s 단계로 전환되었습니다!", portIndex + 1, stageName);
         int priority = safeTarget == maxIndex ? 1 : 2;
 
-        noticeService.createAnalysisNotice(device, message, NoticeType.SYSTEM_NOTICE, priority);
+        noticeService.createAnalysisNotice(device, plant, message, NoticeType.SYSTEM_NOTICE, priority);
     }
 
     // 질병 모델의 정상 라벨은 환경/버전에 따라 "healthy" 또는 "Normal"로 온다. 둘 다 정상으로 처리한다.
@@ -202,13 +232,26 @@ public class PlantService {
         return null;
     }
 
-    // ✅ 요청된 단계 인덱스를 이 기기의 대표 품종이 가진 단계 범위(0 ~ stageCount-1) 안으로 보정
-    private int clampStageIndex(Device device, Integer requested) {
+    // 요청된 단계 인덱스를 이 포트의 품종 단계 범위에 맞춘다.
+    private int clampStageIndex(Species species, Integer requested) {
         if (requested == null) return 0;
-        int maxIndex = (device != null && device.getSpecies() != null
-                ? device.getSpecies().getStageCount()
-                : 3) - 1;
+        int maxIndex = (species != null ? species.getStageCount() : 3) - 1;
         return Math.max(0, Math.min(requested, maxIndex));
+    }
+
+    private void syncSpeciesNickname(Plant plant, String requestedName) {
+        if (requestedName == null || requestedName.isBlank()) {
+            throw new IllegalArgumentException("품종 별명은 비워둘 수 없습니다.");
+        }
+        String nickname = requestedName.trim();
+        plantRepository.findByDeviceId(plant.getDevice().getId()).stream()
+                .filter(item -> item.getSpecies().getId().equals(plant.getSpecies().getId()))
+                .forEach(item -> item.setName(nickname));
+    }
+
+    private void publishThresholdsForPlants(Device device) {
+        mqttPublisherProvider.ifAvailable(publisher -> publisher.publishThresholdsForPlants(
+                device.getId(), plantRepository.findByDeviceId(device.getId())));
     }
 
     private Plant findPlantOwnedByUser(Long plantId, User user) {

@@ -61,6 +61,7 @@ public class SensorLogService {
     }
 
     public void pushRealtime(SensorLogRequestDto dto) {
+        getValidDeviceById(dto.getSerial_number());
         latestDataMap.put(dto.getSerial_number(), dto);
         SseEmitter emitter = emitterMap.get(dto.getSerial_number());
         if (emitter == null) return;
@@ -116,13 +117,12 @@ public class SensorLogService {
     private void triggerInference(Device device, SensorLog currentSensorLog) {
         if (device.getPlants() == null || device.getPlants().isEmpty()) return;
 
-        Species species = device.getSpecies();
-        if (species == null) {
-            log.warn("[Prediction] 품종 정보 없음 - serialNumber: {}", device.getId());
-            return;
-        }
-
         for (Plant plant : device.getPlants()) {
+            Species species = plant.getSpecies();
+            if (species == null) {
+                log.warn("[Prediction] 품종 정보 없음 - plantId: {}", plant.getId());
+                continue;
+            }
             try {
                 LocalDateTime predictionAt = LocalDateTime.now();
                 int currentStage = plant.getStageIndex() == null ? 0 : plant.getStageIndex();

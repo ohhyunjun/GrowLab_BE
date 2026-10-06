@@ -130,6 +130,10 @@ public class DeviceController {
             @PathVariable String serialNumber,
             @RequestBody PortStatusRequestDto requestDto,
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
+        if (requestDto.getPortIndex() == null || requestDto.getPortIndex() < 0
+                || requestDto.getPortIndex() >= 8 || requestDto.getStatus() == null) {
+            return ResponseEntity.badRequest().body("포트 번호는 0~7이고 상태는 필수입니다.");
+        }
         try {
             deviceService.updatePortStatus(
                     serialNumber,
@@ -144,24 +148,4 @@ public class DeviceController {
         }
     }
 
-    // ✅ 기기 대표 품종 설정/변경 - PATCH /api/devices/{serialNumber}/species
-    @PatchMapping("/{serialNumber}/species")
-    public ResponseEntity<?> updateDeviceSpecies(
-            @PathVariable String serialNumber,
-            @Valid @RequestBody DeviceSpeciesRequestDto requestDto,
-            @AuthenticationPrincipal PrincipalDetails principalDetails) {
-        try {
-            DeviceResponseDto result = deviceService.updateDeviceSpecies(
-                    serialNumber,
-                    requestDto.getSpeciesId(),
-                    principalDetails.getUser());
-            return ResponseEntity.ok(result);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-        } catch (IllegalStateException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-        } catch (AccessDeniedException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
-        }
-    }
 }

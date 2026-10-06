@@ -1,6 +1,8 @@
 package com.metaverse.growlab_be.device.service;
 
 import com.metaverse.growlab_be.species.domain.Species;
+import com.metaverse.growlab_be.plant.domain.Plant;
+import com.metaverse.growlab_be.species.service.SharedEnvironment;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -10,6 +12,7 @@ import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -46,6 +49,29 @@ public class MqttPublisher {
 
         send(topic, payload, true);
         log.info("[MQTT] thresholds 전송(retained) → topic={} payload={}", topic, payload);
+    }
+
+    // Arduino receives one range per device: the intersection of all planted species.
+    public void publishThresholdsForPlants(String deviceSerial, List<Plant> plants) {
+        if (plants == null || plants.isEmpty()) {
+            publishThresholds(deviceSerial, null);
+            return;
+        }
+        try {
+            SharedEnvironment common = SharedEnvironment.fromSpecies(
+                    plants.stream().map(Plant::getSpecies).toList());
+            String payload = String.join(",",
+                    formatThreshold(common.temperature().min()), formatThreshold(common.temperature().max()),
+                    formatThreshold(common.humidity().min()), formatThreshold(common.humidity().max()),
+                    formatThreshold(common.ph().min()), formatThreshold(common.ph().max()),
+                    formatThreshold(common.tds().min()), formatThreshold(common.tds().max()));
+            String topic = "growlab/" + deviceSerial + "/thresholds";
+            send(topic, payload, true);
+            log.info("[MQTT] 공통 thresholds 전송(retained) → topic={} payload={}", topic, payload);
+        } catch (IllegalArgumentException | IllegalStateException error) {
+            log.warn("[MQTT] 공통 범위를 계산할 수 없어 임계값을 비움 - serial={}", deviceSerial, error);
+            publishThresholds(deviceSerial, null);
+        }
     }
 
     private String formatThreshold(Double value) {

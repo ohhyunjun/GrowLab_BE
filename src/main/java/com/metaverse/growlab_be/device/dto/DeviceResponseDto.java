@@ -20,24 +20,6 @@ public class DeviceResponseDto {
     private Boolean ledMode;
     private String portStatus;
 
-    private Long speciesId;
-    private String speciesName;
-
-    // 이 기기에 지정된 품종의 센서 적정 범위
-    private Double minTemperature;
-    private Double maxTemperature;
-    private Double minHumidity;
-    private Double maxHumidity;
-    private Double minPh;
-    private Double maxPh;
-    private Double minTds;
-    private Double maxTds;
-
-    // ✅ 이 기기 대표 품종의 생육 단계 정보 (프론트에서 차트/라벨 그릴 때 사용)
-    private List<String> stageNames;
-    private List<Integer> stageDurationDays;
-    private Integer stageCount;
-
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime lastPhotoAt;
 
@@ -69,19 +51,6 @@ public class DeviceResponseDto {
         this.ledOnTime      = device.getLedOnTime();
         this.ledOffTime     = device.getLedOffTime();
         this.plants         = plants;
-        this.speciesId      = device.getSpecies() != null ? device.getSpecies().getId()   : null;
-        this.speciesName    = device.getSpecies() != null ? device.getSpecies().getName() : null;
-        this.minTemperature = device.getSpecies() != null ? device.getSpecies().getMinTemperature() : null;
-        this.maxTemperature = device.getSpecies() != null ? device.getSpecies().getMaxTemperature() : null;
-        this.minHumidity    = device.getSpecies() != null ? device.getSpecies().getMinHumidity()    : null;
-        this.maxHumidity    = device.getSpecies() != null ? device.getSpecies().getMaxHumidity()    : null;
-        this.minPh          = device.getSpecies() != null ? device.getSpecies().getMinPh()          : null;
-        this.maxPh          = device.getSpecies() != null ? device.getSpecies().getMaxPh()          : null;
-        this.minTds         = device.getSpecies() != null ? device.getSpecies().getMinTds()         : null;
-        this.maxTds         = device.getSpecies() != null ? device.getSpecies().getMaxTds()         : null;
-        this.stageNames     = device.getSpecies() != null ? device.getSpecies().getStageNames() : null;
-        this.stageCount     = device.getSpecies() != null ? device.getSpecies().getStageCount() : null;
-        this.stageDurationDays = device.getSpecies() != null ? device.getSpecies().getStageDurationDays() : null;
     }
 
     @Getter
@@ -107,5 +76,18 @@ public class DeviceResponseDto {
 
         @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
         private LocalDateTime maturedAt;
+
+        private Long speciesId;
+        private Double minTemperature;
+        private Double maxTemperature;
+        private Double minHumidity;
+        private Double maxHumidity;
+        private Double minPh;
+        private Double maxPh;
+        private Double minTds;
+        private Double maxTds;
+        private List<String> stageNames;
+        private List<Integer> stageDurationDays;
+        private Integer stageCount;
     }
 }
