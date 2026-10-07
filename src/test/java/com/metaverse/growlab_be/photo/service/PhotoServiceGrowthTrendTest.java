@@ -7,6 +7,7 @@ import com.metaverse.growlab_be.photo.dto.GrowthTrendResponseDto;
 import com.metaverse.growlab_be.photo.repository.PhotoRepository;
 import com.metaverse.growlab_be.plant.domain.Plant;
 import com.metaverse.growlab_be.plant.repository.PlantRepository;
+import com.metaverse.growlab_be.species.domain.Species;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -143,6 +144,22 @@ class PhotoServiceGrowthTrendTest {
         assertThat(health(trend, 1)).isEqualTo("pending");
     }
 
+    @Test
+    void 다른_품종의_포트는_성장_또래와_건강_판정에서_제외한다() {
+        givenPlants(port(0, BASE, 1L), port(1, BASE, 2L));
+        givenPhotos(photo(0, BASE.plusDays(5), 0.30),
+                photo(1, BASE.plusDays(5), 0.01));
+
+        GrowthTrendResponseDto trend = photoService.getGrowthTrend(SERIAL, 1);
+
+        assertThat(trend.getPoints()).hasSize(1);
+        assertThat(trend.getPeerPoints()).isEmpty();
+        assertThat(trend.getGapPercent()).isNull();
+        assertThat(trend.getRank()).isNull();
+        assertThat(health(trend, 0)).isEqualTo("pending");
+        assertThat(health(trend, 1)).isEqualTo("pending");
+    }
+
     private String health(GrowthTrendResponseDto trend, int portIndex) {
         return trend.getPorts().stream().filter(port -> port.getPortIndex() == portIndex)
                 .findFirst().orElseThrow().getHealth();
@@ -158,9 +175,16 @@ class PhotoServiceGrowthTrendTest {
     }
 
     private Plant port(int portIndex, LocalDateTime plantedAt) {
+        return port(portIndex, plantedAt, 1L);
+    }
+
+    private Plant port(int portIndex, LocalDateTime plantedAt, Long speciesId) {
         Plant plant = new Plant();
         plant.setPortIndex(portIndex);
         plant.setPlantedAt(plantedAt);
+        Species species = new Species();
+        species.setId(speciesId);
+        plant.setSpecies(species);
         return plant;
     }
 

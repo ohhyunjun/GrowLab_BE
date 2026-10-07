@@ -96,7 +96,7 @@ public class PhotoService {
      *
      * 비교축은 달력 날짜가 아니라 "파종 후 경과일"이다. 포트마다 파종 시점이 다르므로 같은
      * 날짜끼리 비교하면 늦게 심은 포트가 언제나 뒤처진 것으로 나온다(순차 파종을 하면 항상 틀린다).
-     * 또래는 Plant가 등록된 포트만 쓰며, 같은 경과일에 촬영된 값끼리 비교한다.
+     * 또래는 같은 품종의 Plant가 등록된 포트만 쓰며, 같은 경과일에 촬영된 값끼리 비교한다.
      * 미검출·낮은 신뢰도·오래된 값은 끌어오지 않는다.
      */
     @Transactional(readOnly = true)
@@ -157,7 +157,7 @@ public class PhotoService {
         }
 
         TreeMap<Long, Double> selfDaily = dailyAvg.get(portIndex);
-        GrowthComparison comparison = comparePort(dailyAvg, portIndex);
+        GrowthComparison comparison = comparePort(plantByPort, dailyAvg, portIndex);
 
         // 비교가 성립하기 전에는 본인 관측만 표시한다.
         List<GrowthTrendResponseDto.Point> points = new ArrayList<>();
@@ -189,7 +189,7 @@ public class PhotoService {
             if (isDiseasedLabel(e.getValue().getDiseaseResult())) {
                 health = "bad";
             } else {
-                GrowthComparison comparison = comparePort(dailyAvg, port);
+                GrowthComparison comparison = comparePort(plantByPort, dailyAvg, port);
                 if (comparison.ready())
                     health = comparison.gapPercent() <= STALL_GAP_THRESHOLD ? "warn" : "good";
             }
@@ -203,9 +203,11 @@ public class PhotoService {
         boolean ready() { return gapPercent != null; }
     }
 
-    private GrowthComparison comparePort(Map<Integer, TreeMap<Long, Double>> dailyAvg, int portIndex) {
+    private GrowthComparison comparePort(Map<Integer, Plant> plantByPort,
+                                         Map<Integer, TreeMap<Long, Double>> dailyAvg, int portIndex) {
         TreeMap<Long, Double> selfDaily = dailyAvg.get(portIndex);
-        if (selfDaily == null || selfDaily.isEmpty())
+        Plant self = plantByPort.get(portIndex);
+        if (selfDaily == null || selfDaily.isEmpty() || self == null || self.getSpecies() == null)
             return new GrowthComparison(null, null, null, List.of());
 
         long latestDay = selfDaily.lastKey();
@@ -215,6 +217,9 @@ public class PhotoService {
         int higher = 0;
         for (Map.Entry<Integer, TreeMap<Long, Double>> entry : dailyAvg.entrySet()) {
             if (entry.getKey() == portIndex) continue;
+            Plant peer = plantByPort.get(entry.getKey());
+            if (peer == null || peer.getSpecies() == null
+                    || !self.getSpecies().getId().equals(peer.getSpecies().getId())) continue;
             Double peerValue = entry.getValue().get(latestDay);
             if (peerValue == null) continue;
             peers.add(entry.getKey());
