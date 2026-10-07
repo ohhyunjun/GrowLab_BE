@@ -39,6 +39,10 @@ public class Diary extends TimeStamped {
     @Column(name = "port_index", nullable = false)
     private Integer portIndex;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "plant_id", foreignKey = @ForeignKey(name = "fk_diary_plant"))
+    private Plant plant;
+
     // Keep the names from the day of writing even after this port is replanted.
     @Column(name = "species_name")
     private String speciesName;
@@ -57,13 +61,12 @@ public class Diary extends TimeStamped {
         this.title = request.getTitle();
         this.content = request.getContent();
         this.targetDate = request.getTargetDate();
-        this.portIndex = request.getPortIndex();
+        this.portIndex = plant.getPortIndex();
         this.device = device;
         this.user = user;
-        if (plant != null) {
-            this.speciesName = plant.getSpecies().getName();
-            this.plantName = plant.getName();
-        }
+        this.plant = plant;
+        this.speciesName = plant.getSpecies().getName();
+        this.plantName = plant.getName();
     }
 
     public void addImage(Image image) {

@@ -4,6 +4,7 @@ import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.device.domain.Device;
 import com.metaverse.growlab_be.device.repository.DeviceRepository;
 import com.metaverse.growlab_be.device.service.MqttPublisher;
+import com.metaverse.growlab_be.diary.repository.DiaryRepository;
 import com.metaverse.growlab_be.notice.service.NoticeService;
 import com.metaverse.growlab_be.plant.domain.Plant;
 import com.metaverse.growlab_be.plant.dto.PlantRequestDto;
@@ -43,7 +44,7 @@ class PlantServiceObservationTest {
         plantRepository = mock(PlantRepository.class);
         deviceRepository = mock(DeviceRepository.class);
         speciesRepository = mock(SpeciesRepository.class);
-        plantService = new PlantService(plantRepository, deviceRepository, speciesRepository,
+        plantService = new PlantService(plantRepository, mock(DiaryRepository.class), deviceRepository, speciesRepository,
                 mock(NoticeService.class), mock(ObjectProvider.class));
     }
 
@@ -154,7 +155,7 @@ class PlantServiceObservationTest {
         plant.setDevice(device);
 
         when(deviceRepository.findById("GROWLAB-G111")).thenReturn(Optional.of(device));
-        when(plantRepository.findByDeviceIdAndPortIndex("GROWLAB-G111", 0))
+        when(plantRepository.findByDeviceIdAndPortIndexAndEndedAtIsNull("GROWLAB-G111", 0))
                 .thenReturn(Optional.of(plant));
         return plant;
     }

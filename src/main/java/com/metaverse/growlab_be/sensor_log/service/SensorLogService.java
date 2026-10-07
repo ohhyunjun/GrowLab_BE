@@ -115,9 +115,9 @@ public class SensorLogService {
     // ✅ current_stage를 stageIndex로 교체, 품종 정보(species_id/name, total_stages)를 함께 전송
     // → 추론 서버가 어떤 품종의 몇 단계 기준인지 알 수 있도록 함
     private void triggerInference(Device device, SensorLog currentSensorLog) {
-        if (device.getPlants() == null || device.getPlants().isEmpty()) return;
+        if (device.getActivePlants().isEmpty()) return;
 
-        for (Plant plant : device.getPlants()) {
+        for (Plant plant : device.getActivePlants()) {
             Species species = plant.getSpecies();
             if (species == null) {
                 log.warn("[Prediction] 품종 정보 없음 - plantId: {}", plant.getId());

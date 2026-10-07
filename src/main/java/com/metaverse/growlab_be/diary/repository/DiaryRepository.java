@@ -12,4 +12,5 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
     List<Diary> findByUserAndDeviceIdOrderByTargetDateDescCreatedAtDesc(User user, String deviceSerial);
     Optional<Diary> findByIdAndUserAndDeviceId(Long id, User user, String deviceSerial);
     void deleteByDevice(Device device);
+    boolean existsByPlantId(Long plantId);
 }

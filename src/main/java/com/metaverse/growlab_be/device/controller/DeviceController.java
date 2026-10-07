@@ -71,6 +71,8 @@ public class DeviceController {
         try {
             deviceService.deleteDevice(serialNumber, principalDetails.getUser());
             return ResponseEntity.ok("기기가 성공적으로 해제되었습니다.");
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (AccessDeniedException e) {
@@ -141,6 +143,8 @@ public class DeviceController {
                     requestDto.getStatus(),
                     principalDetails.getUser());
             return ResponseEntity.ok(requestDto.getPortIndex() + "번 포트 상태 변경 완료");
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (AccessDeniedException e) {

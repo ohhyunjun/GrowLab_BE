@@ -135,10 +135,10 @@ public class NoticeService {
         if (user == null) return;
 
         if (ENVIRONMENT_SENSORS.contains(sensor)) {
-            if (device.getPlants().isEmpty()) return;
+            if (device.getActivePlants().isEmpty()) return;
             try {
                 SharedEnvironment current = SharedEnvironment.fromSpecies(
-                        device.getPlants().stream().map(Plant::getSpecies).toList());
+                        device.getActivePlants().stream().map(Plant::getSpecies).toList());
                 if (!rangeFor(current, sensor).outside(value)) return;
             } catch (IllegalArgumentException | IllegalStateException invalidRanges) {
                 return;
@@ -173,7 +173,7 @@ public class NoticeService {
 
     private String affectedSpecies(Device device, String sensor, Float value) {
         if (!ENVIRONMENT_SENSORS.contains(sensor)) return "";
-        return device.getPlants().stream().map(Plant::getSpecies)
+        return device.getActivePlants().stream().map(Plant::getSpecies)
                 .filter(species -> rangeFor(species, sensor).outside(value))
                 .map(Species::getName).distinct().collect(Collectors.joining(", "));
     }

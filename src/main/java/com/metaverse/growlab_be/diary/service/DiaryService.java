@@ -10,6 +10,7 @@ import com.metaverse.growlab_be.diary.dto.DiaryResponseDto;
 import com.metaverse.growlab_be.diary.repository.DiaryRepository;
 import com.metaverse.growlab_be.file.service.FileService;
 import com.metaverse.growlab_be.image.domain.Image;
+import com.metaverse.growlab_be.plant.domain.Plant;
 import com.metaverse.growlab_be.plant.repository.PlantRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -33,9 +34,14 @@ public class DiaryService {
                                         Long userId, List<MultipartFile> files) {
         User user = getUser(userId);
         Device device = getOwnedDevice(serialNumber, user);
-        validatePort(request.getPortIndex());
-        Diary diary = new Diary(request, device, user,
-                plantRepository.findByDeviceIdAndPortIndex(serialNumber, request.getPortIndex()).orElse(null));
+        if (request.getPlantId() == null) {
+            throw new IllegalArgumentException("재배 중인 식물을 선택해주세요.");
+        }
+        Plant plant = plantRepository.findById(request.getPlantId())
+                .filter(Plant::isActive)
+                .filter(item -> item.getDevice().getId().equals(serialNumber))
+                .orElseThrow(() -> new IllegalArgumentException("재배 중인 식물을 선택해주세요."));
+        Diary diary = new Diary(request, device, user, plant);
         Diary saved = diaryRepository.save(diary);
         attachFiles(saved, files);
         return new DiaryResponseDto(saved);
@@ -62,8 +68,9 @@ public class DiaryService {
         User user = getUser(userId);
         getOwnedDevice(serialNumber, user);
         Diary diary = getOwnedDiary(id, serialNumber, user);
-        if (request.getPortIndex() != null && !request.getPortIndex().equals(diary.getPortIndex())) {
-            throw new IllegalArgumentException("기록한 포트는 수정할 수 없습니다.");
+        if (request.getPlantId() != null && diary.getPlant() != null
+                && !request.getPlantId().equals(diary.getPlant().getId())) {
+            throw new IllegalArgumentException("기록한 식물은 수정할 수 없습니다.");
         }
         diary.update(request);
         attachFiles(diary, files);
@@ -103,9 +110,4 @@ public class DiaryService {
                 .orElseThrow(() -> new IllegalArgumentException("해당 기기의 일지를 찾을 수 없습니다."));
     }
 
-    private void validatePort(Integer portIndex) {
-        if (portIndex == null || portIndex < 0 || portIndex >= 8) {
-            throw new IllegalArgumentException("포트 번호는 0~7이어야 합니다.");
-        }
-    }
 }

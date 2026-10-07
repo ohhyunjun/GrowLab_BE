@@ -44,7 +44,7 @@ public class DeviceService {
         mqttPublisherProvider.ifAvailable(publisher ->
                 deviceRepository.findAll().forEach(device -> {
                     try {
-                        publisher.publishThresholdsForPlants(device.getId(), device.getPlants());
+                        publisher.publishThresholdsForPlants(device.getId(), device.getActivePlants());
                     } catch (RuntimeException e) {
                         log.warn("[MQTT] 시작 시 thresholds 동기화 실패 - serial={}", device.getId(), e);
                     }
@@ -61,7 +61,7 @@ public class DeviceService {
                             .map(Photo::getCreatedAt)
                             .orElse(null);
 
-                    List<DeviceResponseDto.PlantSummaryDto> plantSummaries = device.getPlants().stream()
+                    List<DeviceResponseDto.PlantSummaryDto> plantSummaries = device.getActivePlants().stream()
                             .map(this::buildPlantSummary)
                             .sorted(Comparator.comparingInt(DeviceResponseDto.PlantSummaryDto::getPortIndex))
                             .toList();
@@ -108,7 +108,9 @@ public class DeviceService {
     @Transactional
     public void deleteDevice(String serialNumber, User user) {
         Device device = findDeviceOwnedByUser(serialNumber, user);
-        device.getPlants().clear();
+        if (!device.getActivePlants().isEmpty()) {
+            throw new IllegalStateException("재배 중인 포트를 먼저 종료해주세요.");
+        }
         device.setUser(null);
         device.setPortStatus("00000000");
 
@@ -169,6 +171,10 @@ public class DeviceService {
             throw new IllegalArgumentException("포트 번호는 0~7이고 상태는 필수입니다.");
         }
         Device device = findDeviceOwnedByUser(serialNumber, user);
+        if (!Boolean.TRUE.equals(status) && device.getActivePlants().stream()
+                .anyMatch(plant -> portIndex.equals(plant.getPortIndex()))) {
+            throw new IllegalStateException("식물이 있는 포트는 재배 종료를 통해 OFF해주세요.");
+        }
         char[] bits = device.getPortStatus().toCharArray();
         bits[portIndex] = status ? '1' : '0';
         device.setPortStatus(new String(bits));

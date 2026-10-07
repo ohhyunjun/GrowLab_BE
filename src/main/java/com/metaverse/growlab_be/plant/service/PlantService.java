@@ -4,9 +4,11 @@ import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.device.domain.Device;
 import com.metaverse.growlab_be.device.repository.DeviceRepository;
 import com.metaverse.growlab_be.device.service.MqttPublisher;
+import com.metaverse.growlab_be.diary.repository.DiaryRepository;
 import com.metaverse.growlab_be.notice.domain.NoticeType;
 import com.metaverse.growlab_be.notice.service.NoticeService;
 import com.metaverse.growlab_be.plant.domain.Plant;
+import com.metaverse.growlab_be.plant.domain.PlantEndReason;
 import com.metaverse.growlab_be.plant.dto.PlantRequestDto;
 import com.metaverse.growlab_be.plant.dto.PlantResponseDto;
 import com.metaverse.growlab_be.plant.repository.PlantRepository;
@@ -29,6 +31,7 @@ import java.util.Optional;
 public class PlantService {
 
     private final PlantRepository plantRepository;
+    private final DiaryRepository diaryRepository;
     private final DeviceRepository deviceRepository;
     private final SpeciesRepository speciesRepository;
     private final NoticeService noticeService;
@@ -45,7 +48,7 @@ public class PlantService {
         if (portIndex == null || portIndex < 0 || portIndex > 7) {
             throw new IllegalArgumentException("포트 번호는 0부터 7까지여야 합니다.");
         }
-        if (plantRepository.existsByDeviceIdAndPortIndex(device.getId(), portIndex)) {
+        if (plantRepository.existsByDeviceIdAndPortIndexAndEndedAtIsNull(device.getId(), portIndex)) {
             throw new IllegalArgumentException(portIndex + "번 포트에는 이미 식물이 등록되어 있습니다.");
         }
 
@@ -55,7 +58,7 @@ public class PlantService {
         Species species = speciesRepository.findById(plantRequestDto.getSpeciesId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 품종입니다."));
 
-        List<Plant> existing = plantRepository.findByDeviceId(device.getId());
+        List<Plant> existing = plantRepository.findByDeviceIdAndEndedAtIsNull(device.getId());
         boolean mixing = existing.stream().anyMatch(item -> !item.getSpecies().getId().equals(species.getId()));
         if (mixing) {
             List<Species> combination = new java.util.ArrayList<>(existing.stream().map(Plant::getSpecies).toList());
@@ -115,7 +118,23 @@ public class PlantService {
     public void deletePlant(Long plantId, User user) {
         Plant plant = findPlantOwnedByUser(plantId, user);
         Device device = plant.getDevice();
+        if (device.getPortStatus().charAt(plant.getPortIndex()) == '1'
+                || diaryRepository.existsByPlantId(plantId)) {
+            throw new IllegalStateException("재배 중이거나 일지가 있는 식물은 삭제할 수 없습니다. 포트에서 재배를 종료해주세요.");
+        }
         plantRepository.delete(plant);
+        plantRepository.flush();
+        publishThresholdsForPlants(device);
+    }
+
+    @Transactional
+    public void finishPlant(Long plantId, PlantEndReason reason, User user) {
+        Plant plant = findPlantOwnedByUser(plantId, user);
+        Device device = plant.getDevice();
+        plant.finish(reason);
+        char[] bits = device.getPortStatus().toCharArray();
+        bits[plant.getPortIndex()] = '0';
+        device.setPortStatus(new String(bits));
         plantRepository.flush();
         publishThresholdsForPlants(device);
     }
@@ -130,7 +149,7 @@ public class PlantService {
 
         if (device.getUser() == null) return;
 
-        Optional<Plant> optionalPlant = plantRepository.findByDeviceIdAndPortIndex(device.getId(), portIndex);
+        Optional<Plant> optionalPlant = plantRepository.findByDeviceIdAndPortIndexAndEndedAtIsNull(device.getId(), portIndex);
 
         if (optionalPlant.isPresent()) {
             Plant plant = optionalPlant.get();
@@ -244,14 +263,14 @@ public class PlantService {
             throw new IllegalArgumentException("품종 별명은 비워둘 수 없습니다.");
         }
         String nickname = requestedName.trim();
-        plantRepository.findByDeviceId(plant.getDevice().getId()).stream()
+        plantRepository.findByDeviceIdAndEndedAtIsNull(plant.getDevice().getId()).stream()
                 .filter(item -> item.getSpecies().getId().equals(plant.getSpecies().getId()))
                 .forEach(item -> item.setName(nickname));
     }
 
     private void publishThresholdsForPlants(Device device) {
         mqttPublisherProvider.ifAvailable(publisher -> publisher.publishThresholdsForPlants(
-                device.getId(), plantRepository.findByDeviceId(device.getId())));
+                device.getId(), plantRepository.findByDeviceIdAndEndedAtIsNull(device.getId())));
     }
 
     private Plant findPlantOwnedByUser(Long plantId, User user) {

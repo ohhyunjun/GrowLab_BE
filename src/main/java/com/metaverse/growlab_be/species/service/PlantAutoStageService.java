@@ -29,7 +29,7 @@ public class PlantAutoStageService {
     @Scheduled(cron = "0 5 0 * * *")
     @Transactional
     public void advanceStagesByDate() {
-        List<Plant> allPlants = plantRepository.findAll();
+        List<Plant> allPlants = plantRepository.findByEndedAtIsNull();
 
         for (Plant plant : allPlants) {
             try {

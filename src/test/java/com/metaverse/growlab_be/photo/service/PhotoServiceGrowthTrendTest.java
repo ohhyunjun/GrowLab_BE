@@ -166,7 +166,7 @@ class PhotoServiceGrowthTrendTest {
     }
 
     private void givenPlants(Plant... plants) {
-        when(plantRepository.findByDeviceId(SERIAL)).thenReturn(List.of(plants));
+        when(plantRepository.findByDeviceIdAndEndedAtIsNull(SERIAL)).thenReturn(List.of(plants));
     }
 
     private void givenPhotos(Photo... photos) {

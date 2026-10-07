@@ -16,6 +16,8 @@ public class DiaryResponseDto {
     private final String deviceSerial;
     private final String deviceNickname;
     private final Integer portIndex;
+    private final Long plantId;
+    private final String plantEndReason;
     private final String speciesName;
     private final String plantName;
     private final List<String> imageUrls;
@@ -30,6 +32,9 @@ public class DiaryResponseDto {
         this.deviceSerial = diary.getDevice().getId();
         this.deviceNickname = diary.getDevice().getDeviceNickname();
         this.portIndex = diary.getPortIndex();
+        this.plantId = diary.getPlant() == null ? null : diary.getPlant().getId();
+        this.plantEndReason = diary.getPlant() == null || diary.getPlant().getEndReason() == null
+                ? null : diary.getPlant().getEndReason().name();
         this.speciesName = diary.getSpeciesName();
         this.plantName = diary.getPlantName();
         this.targetDate = diary.getTargetDate();

@@ -56,6 +56,10 @@ public class Device extends TimeStamped {
     @OneToMany(mappedBy = "device", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Plant> plants = new ArrayList<>();
 
+    public List<Plant> getActivePlants() {
+        return plants.stream().filter(Plant::isActive).toList();
+    }
+
     public Device(String id, String deviceNickname) {
         this.id = id;
         this.deviceNickname = deviceNickname;

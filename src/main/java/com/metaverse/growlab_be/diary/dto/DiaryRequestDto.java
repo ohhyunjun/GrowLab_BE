@@ -18,5 +18,5 @@ public class DiaryRequestDto {
     @NotNull
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime targetDate;
-    private Integer portIndex;
+    private Long plantId;
 }

@@ -39,11 +39,11 @@ public class SpeciesThresholdMqttListener {
         }
 
         for (Device device : deviceRepository.findAll()) {
-            boolean used = device.getPlants().stream().anyMatch(plant ->
+            boolean used = device.getActivePlants().stream().anyMatch(plant ->
                     plant.getSpecies() != null && event.speciesId().equals(plant.getSpecies().getId()));
             if (!used) continue;
             try {
-                publisher.publishThresholdsForPlants(device.getId(), device.getPlants());
+                publisher.publishThresholdsForPlants(device.getId(), device.getActivePlants());
             } catch (RuntimeException e) {
                 log.warn("[MQTT] 품종 수정 thresholds 재발행 실패 - speciesId={}, serial={}",
                         event.speciesId(), device.getId(), e);

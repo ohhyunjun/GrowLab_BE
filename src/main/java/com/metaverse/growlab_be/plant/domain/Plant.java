@@ -21,7 +21,7 @@ import java.util.List;
 @Table(name = "plant", uniqueConstraints = {
         @UniqueConstraint(
                 name = "uk_device_port",
-                columnNames = {"device_serial", "port_index"}
+                columnNames = {"device_serial", "active_port_index"}
         )
 })
 public class Plant extends TimeStamped {
@@ -49,6 +49,16 @@ public class Plant extends TimeStamped {
     @Column(nullable = false, name = "port_index")
     private Integer portIndex;
 
+    @Column(name = "active_port_index")
+    private Integer activePortIndex;
+
+    @Column(name = "ended_at")
+    private LocalDateTime endedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "end_reason")
+    private PlantEndReason endReason;
+
     @Column
     private String diseaseResult;
 
@@ -70,7 +80,20 @@ public class Plant extends TimeStamped {
         this.maturedAt = plantRequestDto.getMaturedAt();
         this.stageIndex = plantRequestDto.getStageIndex() != null ? plantRequestDto.getStageIndex() : 0;
         this.portIndex = plantRequestDto.getPortIndex();
+        this.activePortIndex = plantRequestDto.getPortIndex();
         this.device = device;
+    }
+
+    public boolean isActive() {
+        return endedAt == null;
+    }
+
+    public void finish(PlantEndReason reason) {
+        if (reason == null) throw new IllegalArgumentException("재배 종료 사유가 필요합니다.");
+        if (!isActive()) throw new IllegalStateException("이미 종료된 식물입니다.");
+        this.endedAt = LocalDateTime.now();
+        this.endReason = reason;
+        this.activePortIndex = null;
     }
 
     public void update(PlantRequestDto plantRequestDto) {

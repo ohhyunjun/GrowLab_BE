@@ -2,6 +2,7 @@ package com.metaverse.growlab_be.plant.controller;
 
 import com.metaverse.growlab_be.auth.domain.PrincipalDetails;
 import com.metaverse.growlab_be.plant.dto.PlantRequestDto;
+import com.metaverse.growlab_be.plant.domain.PlantEndReason;
 import com.metaverse.growlab_be.plant.dto.PlantResponseDto;
 import com.metaverse.growlab_be.plant.service.PlantService;
 import lombok.RequiredArgsConstructor;
@@ -76,6 +77,17 @@ public class PlantController {
     }
 
     // 6. 식물 삭제 (DELETE /api/plants/{plantId})
+    @PostMapping("/{plantId}/finish")
+    public ResponseEntity<Void> finishPlant(
+            @PathVariable Long plantId,
+            @RequestBody FinishPlantRequest request,
+            @AuthenticationPrincipal PrincipalDetails principalDetails) {
+        plantService.finishPlant(plantId, request.reason(), principalDetails.getUser());
+        return ResponseEntity.noContent().build();
+    }
+
+    public record FinishPlantRequest(PlantEndReason reason) {}
+
     @DeleteMapping("/{plantId}")
     public ResponseEntity<Void> deletePlant(
             @PathVariable Long plantId,

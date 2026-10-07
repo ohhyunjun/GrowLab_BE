@@ -61,7 +61,7 @@ public class SpeciesService {
         Species proposed = new Species(speciesRequestDto);
         SharedEnvironment.validateSpecies(proposed);
         deviceRepository.findAll().forEach(device -> {
-            List<Plant> plants = device.getPlants();
+            List<Plant> plants = device.getActivePlants();
             boolean usesUpdated = plants.stream().anyMatch(plant -> plant.getSpecies().getId().equals(id));
             boolean mixed = plants.stream().anyMatch(plant -> !plant.getSpecies().getId().equals(id));
             if (usesUpdated && mixed) {

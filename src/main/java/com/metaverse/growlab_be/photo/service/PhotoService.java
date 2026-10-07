@@ -107,7 +107,7 @@ public class PhotoService {
         // 활성 포트 = Plant가 등록된 포트. 파종 시각이 경과일 계산의 기준이 된다.
         Map<Integer, LocalDate> plantedDateByPort = new HashMap<>();
         Map<Integer, Plant> plantByPort = new HashMap<>();
-        for (Plant plant : plantRepository.findByDeviceId(serialNumber)) {
+        for (Plant plant : plantRepository.findByDeviceIdAndEndedAtIsNull(serialNumber)) {
             if (plant.getPortIndex() == null || plant.getPlantedAt() == null) continue;
             plantedDateByPort.put(plant.getPortIndex(), plant.getPlantedAt().toLocalDate());
             plantByPort.put(plant.getPortIndex(), plant);
