@@ -4,7 +4,6 @@ import com.metaverse.growlab_be.auth.domain.EmailVerification;
 import com.metaverse.growlab_be.auth.repository.EmailVerificationRepository;
 import com.metaverse.growlab_be.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -21,9 +20,6 @@ public class EmailVerificationService {
     private final EmailVerificationRepository emailVerificationRepository;
     private final UserRepository userRepository;
     private final JavaMailSender mailSender;
-
-    @Value("${spring.mail.username}")
-    private String mailFrom;
 
     private static final long EXPIRATION_MINUTES = 5;
     private final SecureRandom random = new SecureRandom();
@@ -122,7 +118,6 @@ public class EmailVerificationService {
 
     private void sendMail(String to, String code, String subject) {
         SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(mailFrom);
         message.setTo(to);
         message.setSubject(subject);
         message.setText("인증코드는 " + code + " 입니다. " + EXPIRATION_MINUTES + "분 이내에 입력해주세요.");
