@@ -8,7 +8,6 @@ import com.metaverse.growlab_be.diary.repository.DiaryRepository;
 import com.metaverse.growlab_be.notice.repository.NoticeRepository;
 import com.metaverse.growlab_be.photo.domain.Photo;
 import com.metaverse.growlab_be.photo.repository.PhotoRepository;
-import com.metaverse.growlab_be.sensor_log.repository.SensorAnomalyRepository;
 import com.metaverse.growlab_be.sensor_log.repository.SensorLogRepository;
 import com.metaverse.growlab_be.species.domain.Species;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +32,6 @@ public class DeviceService {
     private final DeviceRepository deviceRepository;
     private final PhotoRepository  photoRepository;
     private final SensorLogRepository sensorLogRepository;
-    private final SensorAnomalyRepository sensorAnomalyRepository;
     private final NoticeRepository noticeRepository;
     private final DiaryRepository diaryRepository;
     private final ObjectProvider<MqttPublisher> mqttPublisherProvider;
@@ -126,7 +124,6 @@ public class DeviceService {
         diaryRepository.deleteByDevice(device);
         noticeRepository.deleteByDeviceSerial(serialNumber);
         photoRepository.deleteByDevice(device);
-        sensorAnomalyRepository.deleteByDevice(device);
         sensorLogRepository.deleteByDevice(device);
         deviceRepository.delete(device);
     }
