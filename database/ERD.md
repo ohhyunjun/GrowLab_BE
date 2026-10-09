@@ -25,8 +25,6 @@ erDiagram
     USER ||--o{ ARTICLE_LIKE : likes
     ARTICLE ||--o{ FILE : attaches
     DIARY ||--o{ FILE : attaches
-    ARTICLE ||--o{ IMAGE : attaches
-    DIARY ||--o{ IMAGE : attaches
 ```
 
 `DEVICE → PLANT ← SPECIES`가 다품종 재배의 핵심이다. `Plant`는 한 번의 재배를 나타내며, 종료 후에도 행을 보존한다. 수확은 `HARVESTED`, 병들거나 시들어 죽은 경우는 `DIED`로 기록한다. 같은 기기·포트에 다시 심으면 새 `Plant.id`가 생성된다. `(device_serial, active_port_index)`만 유일하며 종료된 행의 `active_port_index`는 `NULL`이다. 기기당 활성 포트는 최대 8개다. `Device`에 대표 `species_id`는 두지 않는다. 서로 다른 품종의 온도·습도·pH·TDS·조명 시간 범위가 모두 겹칠 때만 혼합 재배를 허용한다.
@@ -47,12 +45,13 @@ erDiagram
 | `prediction` | `id`, `plant_id`, `predicted_stage`, `confidence`, `prediction_mode`, `eta_lower_hours`, `eta_point_hours`, `eta_upper_hours` | `plant_id → plant.id`; 식물의 품종을 따라 예측 |
 | `notice` | `id`, `user_id`, `device_serial`, `message`, `is_read`, `notice_type`, `priority`, `additional_data` | `user_id → user.id`. `device_serial`은 현재 문자열 컬럼이며 물리 FK는 아님. 카메라 알림의 `plantId`는 `additional_data`에 저장; 환경 센서 알림은 기기 단위 |
 
-커뮤니티의 `article`, `comment`, `article_like`, `file`, `image` 관계는 위 다이어그램처럼 유지한다. `article_like`는 `(user_id, article_id)`가 유일하며, `file`과 `image`는 각각 게시글 또는 일지에 연결될 수 있다.
+커뮤니티의 `article`, `comment`, `article_like`, `file` 관계는 위 다이어그램처럼 유지한다. `article_like`는 `(user_id, article_id)`가 유일하다. 게시글·일지 첨부 이미지는 모두 `file`에 저장하며 `file_url`을 화면에 제공한다. 기기 카메라 사진과 분석 결과는 별도 `photo`에 저장한다. `image`와 센서 이상 지속시간 테이블 `sensor_anomaly`는 사용하지 않는다.
 
 ## 기존 DB 전환 순서
 
 1. `migrations/20261005_device_port_species.sql`: 기존 `device.species_id`를 `plant.species_id`로 옮기고 기기 대표 품종 열 및 과거 `plant.plant_stage`를 제거한다. 식물의 품종을 복원할 수 없으면 `NOT NULL` 단계에서 중단한다.
 2. `migrations/20261006_device_port_diary.sql`: 기존 `diary.plant_id`를 유지하고 기기·포트와 당시 이름을 스냅샷으로 채운다. 과거 포트 기반 일지에서 식물이 이미 삭제된 경우 `plant_id`를 추측해 채우지 않는다.
 3. `migrations/20261007_plant_lifecycle.sql`: 재배 종료 컬럼과 활성 포트 유일성 제약을 추가한다.
+4. `migrations/20261008_file_image_cleanup.sql`: 기존 `image`를 `file`로 옮기고 `image`, `sensor_anomaly`를 제거한다.
 
-두 SQL은 기존 DB의 데이터를 옮기기 위한 수동 마이그레이션이다. ERD의 `Common`이나 `CopyOf...`를 실제 테이블로 생성하지 않는다.
+위 SQL은 기존 DB의 데이터를 옮기기 위한 수동 마이그레이션이다. ERD의 `Common`이나 `CopyOf...`를 실제 테이블로 생성하지 않는다.
