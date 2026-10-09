@@ -9,7 +9,6 @@ import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.comment.domain.Comment;
 import com.metaverse.growlab_be.comment.dto.CommentResponseDto;
 import com.metaverse.growlab_be.file.service.FileService;
-import com.metaverse.growlab_be.image.domain.Image;
 import com.metaverse.growlab_be.likes.articleLike.domain.ArticleLike;
 import com.metaverse.growlab_be.likes.articleLike.repository.ArticleLikeRepository;
 import jakarta.servlet.http.Cookie;
@@ -41,9 +40,7 @@ public class ArticleService {
         if (images != null && !images.isEmpty()) {
             for (MultipartFile imgFile : images) {
                 if (!imgFile.isEmpty()) {
-                    String uploadedUrl = fileService.uploadFile(savedArticle, imgFile);
-                    Image image = new Image(uploadedUrl);
-                    savedArticle.addImage(image);
+                    savedArticle.addFile(fileService.uploadFile(savedArticle, imgFile));
                 }
             }
         }
@@ -97,15 +94,14 @@ public class ArticleService {
         foundArticle.update(articleRequestDto);
 
         if (articleRequestDto.getDeleteImageIds() != null && !articleRequestDto.getDeleteImageIds().isEmpty()) {
-            foundArticle.getImages().removeIf(image ->
-                    articleRequestDto.getDeleteImageIds().contains(image.getId())
+            foundArticle.getFiles().removeIf(file ->
+                    articleRequestDto.getDeleteImageIds().contains(file.getId())
             );
         }
         if (images != null && !images.isEmpty()) {
             for (MultipartFile imgFile : images) {
                 if (!imgFile.isEmpty()) {
-                    String uploadedUrl = fileService.uploadFile(foundArticle, imgFile);
-                    foundArticle.addImage(new Image(uploadedUrl));
+                    foundArticle.addFile(fileService.uploadFile(foundArticle, imgFile));
                 }
             }
         }

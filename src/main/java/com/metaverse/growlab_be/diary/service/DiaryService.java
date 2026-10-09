@@ -9,7 +9,6 @@ import com.metaverse.growlab_be.diary.dto.DiaryRequestDto;
 import com.metaverse.growlab_be.diary.dto.DiaryResponseDto;
 import com.metaverse.growlab_be.diary.repository.DiaryRepository;
 import com.metaverse.growlab_be.file.service.FileService;
-import com.metaverse.growlab_be.image.domain.Image;
 import com.metaverse.growlab_be.plant.domain.Plant;
 import com.metaverse.growlab_be.plant.repository.PlantRepository;
 import lombok.RequiredArgsConstructor;
@@ -87,7 +86,7 @@ public class DiaryService {
     private void attachFiles(Diary diary, List<MultipartFile> files) {
         if (files == null) return;
         for (MultipartFile file : files) {
-            if (!file.isEmpty()) diary.addImage(new Image(fileService.uploadFile(file)));
+            if (!file.isEmpty()) diary.addFile(fileService.uploadFile(diary, file));
         }
     }
 

@@ -4,7 +4,7 @@ import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.common.domain.TimeStamped;
 import com.metaverse.growlab_be.device.domain.Device;
 import com.metaverse.growlab_be.diary.dto.DiaryRequestDto;
-import com.metaverse.growlab_be.image.domain.Image;
+import com.metaverse.growlab_be.file.domain.File;
 import com.metaverse.growlab_be.plant.domain.Plant;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -55,7 +55,7 @@ public class Diary extends TimeStamped {
     private User user;
 
     @OneToMany(mappedBy = "diary", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Image> images = new ArrayList<>();
+    private List<File> files = new ArrayList<>();
 
     public Diary(DiaryRequestDto request, Device device, User user, Plant plant) {
         this.title = request.getTitle();
@@ -69,9 +69,9 @@ public class Diary extends TimeStamped {
         this.plantName = plant.getName();
     }
 
-    public void addImage(Image image) {
-        image.setDiary(this);
-        images.add(image);
+    public void addFile(File file) {
+        file.setDiary(this);
+        files.add(file);
     }
 
     public void update(DiaryRequestDto request) {

@@ -3,7 +3,7 @@ package com.metaverse.growlab_be.article.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.metaverse.growlab_be.article.domain.Article;
 import com.metaverse.growlab_be.comment.dto.CommentResponseDto;
-import com.metaverse.growlab_be.image.dto.ImageResponseDto;
+import com.metaverse.growlab_be.file.dto.FileResponseDto;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -23,7 +23,7 @@ public class ArticleResponseDto {
     private boolean liked;
     private int likesCount;
 
-    private List<ImageResponseDto> images;
+    private List<FileResponseDto> images;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
@@ -46,9 +46,9 @@ public class ArticleResponseDto {
             this.authorUsername = article.getUser().getUsername();
         }
 
-        // Article 엔티티에서 이미지 리스트를 가져와 ImageResponseDto로 변환하여 저장
-        this.images = article.getImages().stream()
-                .map(ImageResponseDto::new)
+        // File에 저장된 게시글 이미지의 기존 응답 형식을 유지한다.
+        this.images = article.getFiles().stream()
+                .map(FileResponseDto::new)
                 .collect(Collectors.toList());
 
         this.likesCount = likesCount;
@@ -70,9 +70,9 @@ public class ArticleResponseDto {
             this.authorUsername = article.getUser().getUsername();
         }
 
-        // Article 엔티티에서 이미지 리스트를 가져와 ImageResponseDto로 변환하여 저장
-        this.images = article.getImages().stream()
-                .map(ImageResponseDto::new)
+        // File에 저장된 게시글 이미지의 기존 응답 형식을 유지한다.
+        this.images = article.getFiles().stream()
+                .map(FileResponseDto::new)
                 .collect(Collectors.toList());
 
         this.likesCount = 0;
@@ -94,9 +94,9 @@ public class ArticleResponseDto {
             this.authorUsername = article.getUser().getUsername();
         }
 
-        // Article 엔티티에서 이미지 리스트를 가져와 ImageResponseDto로 변환하여 저장
-        this.images = article.getImages().stream()
-                .map(ImageResponseDto::new)
+        // File에 저장된 게시글 이미지의 기존 응답 형식을 유지한다.
+        this.images = article.getFiles().stream()
+                .map(FileResponseDto::new)
                 .collect(Collectors.toList());
 
         this.likesCount = likesCount;

@@ -22,45 +22,27 @@ public class FileService {
     private String uploadDir;
 
     // 파일 업로드 메서드
-    public String uploadFile(Article article, MultipartFile multipartFile) {
-        if(multipartFile == null || multipartFile.isEmpty()){
-            throw new IllegalArgumentException("업로드할 파일이 비어 있습니다.");
-        }
-
-        String originalFileName = multipartFile.getOriginalFilename();
-        String extension = (originalFileName != null && originalFileName.contains("."))
-                ? originalFileName.substring(originalFileName.lastIndexOf("."))
-                : ".jpg";
-        String storedFileName = java.util.UUID.randomUUID().toString() + extension;
-
-        Path uploadPath = Path.of(uploadDir).toAbsolutePath().normalize();
-
-        try {
-            Files.createDirectories(uploadPath);
-        } catch (IOException e) {
-            throw new RuntimeException("파일 저장 디렉토리 생성에 실패했습니다: " + uploadPath.toString(), e);
-        }
-
-        Path filePath = uploadPath.resolve(storedFileName);
-
-        try {
-            multipartFile.transferTo(filePath);
-        } catch (IOException e) {
-            throw new RuntimeException("파일 저장 중 오류가 발생했습니다: " + filePath.toString(), e);
-        }
-
-        File fileEntity = new File(originalFileName, storedFileName, filePath.toString(), article);
-        fileRepository.save(fileEntity);
-
-        return "/api/files/" + storedFileName;
+    public File uploadFile(Article article, MultipartFile multipartFile) {
+        StoredFile stored = store(multipartFile);
+        return fileRepository.save(new File(stored.originalName(), stored.storedName(),
+                stored.path(), stored.url(), article));
     }
 
-    public String uploadFile(MultipartFile file) {
+    public File uploadFile(Diary diary, MultipartFile multipartFile) {
+        StoredFile stored = store(multipartFile);
+        return fileRepository.save(new File(stored.originalName(), stored.storedName(),
+                stored.path(), stored.url(), diary));
+    }
+
+    private StoredFile store(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("업로드할 파일이 비어 있습니다.");
         }
 
-        String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
+        String originalName = file.getOriginalFilename();
+        String extension = originalName != null && originalName.contains(".")
+                ? originalName.substring(originalName.lastIndexOf(".")) : ".jpg";
+        String storedName = java.util.UUID.randomUUID() + extension;
         Path uploadPath = Path.of(uploadDir).toAbsolutePath().normalize();
 
         try {
@@ -69,7 +51,7 @@ public class FileService {
             throw new RuntimeException("파일 저장 디렉토리 생성 실패: " + uploadPath, e);
         }
 
-        Path filePath = uploadPath.resolve(fileName);
+        Path filePath = uploadPath.resolve(storedName);
 
         try {
             file.transferTo(filePath);
@@ -77,6 +59,9 @@ public class FileService {
             throw new RuntimeException("파일 업로드 실패: " + filePath, e);
         }
 
-        return "/uploads/" + fileName;
+        return new StoredFile(originalName == null ? storedName : originalName,
+                storedName, filePath.toString(), "/uploads/" + storedName);
     }
+
+    private record StoredFile(String originalName, String storedName, String path, String url) {}
 }

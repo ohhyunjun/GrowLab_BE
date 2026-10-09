@@ -2,7 +2,7 @@ package com.metaverse.growlab_be.diary.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.metaverse.growlab_be.diary.domain.Diary;
-import com.metaverse.growlab_be.image.domain.Image;
+import com.metaverse.growlab_be.file.domain.File;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
@@ -38,6 +38,6 @@ public class DiaryResponseDto {
         this.speciesName = diary.getSpeciesName();
         this.plantName = diary.getPlantName();
         this.targetDate = diary.getTargetDate();
-        this.imageUrls = diary.getImages().stream().map(Image::getImgUrl).toList();
+        this.imageUrls = diary.getFiles().stream().map(File::getFileUrl).toList();
     }
 }
