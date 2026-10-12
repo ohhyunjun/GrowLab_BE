@@ -1,5 +1,5 @@
 -- Run on an existing MySQL database before starting the updated BE.
--- Back up the database first. The last two statements remove retired tables.
+-- Back up the database and S3 objects first. Retired tables are kept for rollback.
 
 -- Hibernate ddl-auto=update may have created this column already.
 SET @file_url_exists = (
@@ -13,17 +13,23 @@ PREPARE add_file_url_stmt FROM @add_file_url;
 EXECUTE add_file_url_stmt;
 DEALLOCATE PREPARE add_file_url_stmt;
 
--- Article uploads previously wrote both File and Image. Reuse the File row.
+-- Keep existing public URLs. In AWS, file_path can itself be an S3 URL;
+-- replacing it with /uploads/<name> would break historical attachments.
 UPDATE `file` f
 LEFT JOIN `image` i
   ON i.article_id = f.article_id
  AND i.diary_id IS NULL
  AND SUBSTRING_INDEX(i.img_url, '/', -1) = f.stored_file_name
 SET f.file_url = CASE
-    WHEN i.img_url IS NULL OR i.img_url LIKE '/api/files/%'
-      THEN CONCAT('/uploads/', f.stored_file_name)
-    ELSE i.img_url
-END;
+    WHEN f.file_path LIKE 'https://%' OR f.file_path LIKE 'http://%'
+      THEN f.file_path
+    WHEN i.img_url LIKE 'https://%' OR i.img_url LIKE 'http://%'
+      THEN i.img_url
+    WHEN i.img_url LIKE '/uploads/%' THEN i.img_url
+    WHEN f.file_path LIKE '/uploads/%' THEN f.file_path
+    ELSE CONCAT('/uploads/', f.stored_file_name)
+END
+WHERE f.file_url IS NULL OR f.file_url = '' OR f.file_url LIKE '/api/files/%';
 
 -- Diary images, and any article images without a File row, need a File row.
 INSERT INTO `file` (
@@ -69,5 +75,5 @@ DELIMITER ;
 CALL `assert_image_migrated`();
 DROP PROCEDURE `assert_image_migrated`;
 
-DROP TABLE `image`;
-DROP TABLE `sensor_anomaly`;
+-- Leave image and sensor_anomaly in place until the new BE has been verified
+-- against the live data and a restorable backup. The new BE does not use them.

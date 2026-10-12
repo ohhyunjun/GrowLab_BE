@@ -52,6 +52,6 @@ erDiagram
 1. `migrations/20261005_device_port_species.sql`: 기존 `device.species_id`를 `plant.species_id`로 옮기고 기기 대표 품종 열 및 과거 `plant.plant_stage`를 제거한다. 식물의 품종을 복원할 수 없으면 `NOT NULL` 단계에서 중단한다.
 2. `migrations/20261006_device_port_diary.sql`: 기존 `diary.plant_id`를 유지하고 기기·포트와 당시 이름을 스냅샷으로 채운다. 과거 포트 기반 일지에서 식물이 이미 삭제된 경우 `plant_id`를 추측해 채우지 않는다.
 3. `migrations/20261007_plant_lifecycle.sql`: 재배 종료 컬럼과 활성 포트 유일성 제약을 추가한다.
-4. `migrations/20261008_file_image_cleanup.sql`: 기존 `image`를 `file`로 옮기고 `image`, `sensor_anomaly`를 제거한다.
+4. `migrations/20261008_file_image_cleanup.sql`: 기존 `image`를 `file`로 옮긴다. 운영 검증과 백업 확인 전에는 `image`, `sensor_anomaly`의 물리 테이블을 보존한다.
 
 위 SQL은 기존 DB의 데이터를 옮기기 위한 수동 마이그레이션이다. ERD의 `Common`이나 `CopyOf...`를 실제 테이블로 생성하지 않는다.
