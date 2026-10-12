@@ -79,11 +79,14 @@ public class MqttPublisher {
     }
 
     private void send(String topic, String payload, boolean retained) {
-        mqttOutboundChannel.send(
+        boolean accepted = mqttOutboundChannel.send(
                 MessageBuilder.withPayload(payload)
                         .setHeader(MqttHeaders.TOPIC, topic)
                         .setHeader(MqttHeaders.RETAINED, retained)
                         .build()
         );
+        if (!accepted) {
+            throw new IllegalStateException("MQTT 메시지를 전송하지 못했습니다: " + topic);
+        }
     }
 }

@@ -35,19 +35,29 @@ public class DeviceService {
     private final NoticeRepository noticeRepository;
     private final DiaryRepository diaryRepository;
     private final ObjectProvider<MqttPublisher> mqttPublisherProvider;
+    private static final int MAX_PHOTO_INTERVAL_HOURS = 6;
 
     // 시작 시 포트별 품종을 기준으로 retained thresholds를 다시 발행한다.
     @EventListener(ApplicationReadyEvent.class)
+    @Transactional
     public void publishRetainedThresholdsOnStartup() {
-        mqttPublisherProvider.ifAvailable(publisher ->
-                deviceRepository.findAll().forEach(device -> {
-                    try {
-                        publisher.publishThresholdsForPlants(device.getId(), device.getActivePlants());
-                    } catch (RuntimeException e) {
-                        log.warn("[MQTT] 시작 시 thresholds 동기화 실패 - serial={}", device.getId(), e);
-                    }
-                })
-        );
+        MqttPublisher publisher = mqttPublisherProvider.getIfAvailable();
+        deviceRepository.findAll().forEach(device -> {
+            Integer savedInterval = device.getPhotoInterval();
+            int interval = savedInterval == null ? MAX_PHOTO_INTERVAL_HOURS
+                    : Math.max(1, Math.min(savedInterval, MAX_PHOTO_INTERVAL_HOURS));
+            if (!Integer.valueOf(interval).equals(savedInterval)) {
+                device.setPhotoInterval(interval);
+            }
+            if (publisher != null) {
+                try {
+                    publisher.publishPhotoInterval(device.getId(), interval);
+                    publisher.publishThresholdsForPlants(device.getId(), device.getActivePlants());
+                } catch (RuntimeException e) {
+                    log.warn("[MQTT] 시작 시 기기 설정 동기화 실패 - serial={}", device.getId(), e);
+                }
+            }
+        });
     }
 
     public List<DeviceResponseDto> getUserDevices(User user) {
@@ -100,7 +110,16 @@ public class DeviceService {
         if (deviceRepository.existsById(serialNumber)) {
             throw new IllegalArgumentException("이미 존재하는 시리얼 번호입니다: " + serialNumber);
         }
-        deviceRepository.save(new Device(serialNumber, serialNumber));
+        MqttPublisher publisher = mqttPublisherProvider.getIfAvailable();
+        if (publisher == null) {
+            throw new IllegalStateException("MQTT 제어 연결이 비활성화되어 새 기기의 촬영 주기를 설정할 수 없습니다.");
+        }
+        Device device = deviceRepository.save(new Device(serialNumber, serialNumber));
+        try {
+            publisher.publishPhotoInterval(serialNumber, device.getPhotoInterval());
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("MQTT 브로커에 새 기기의 촬영 주기를 보낼 수 없습니다.", e);
+        }
     }
 
     @Transactional
@@ -131,14 +150,25 @@ public class DeviceService {
     @Transactional
     public void updatePhotoInterval(String serialNumber, Integer photoInterval, User user) {
         Device device = findDeviceOwnedByUser(serialNumber, user);
+        MqttPublisher publisher = mqttPublisherProvider.getIfAvailable();
+        if (publisher == null) {
+            throw new IllegalStateException("MQTT 제어 연결이 비활성화되어 촬영 주기 명령을 보낼 수 없습니다.");
+        }
         device.setPhotoInterval(photoInterval);
-        mqttPublisherProvider.ifAvailable(publisher ->
-                publisher.publishPhotoInterval(serialNumber, photoInterval));
+        try {
+            publisher.publishPhotoInterval(serialNumber, photoInterval);
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("MQTT 브로커에 촬영 주기 명령을 보낼 수 없습니다.", e);
+        }
     }
 
     @Transactional
     public void controlLed(String serialNumber, LedRequestDto requestDto, User user) {
         Device device = findDeviceOwnedByUser(serialNumber, user);
+        MqttPublisher publisher = mqttPublisherProvider.getIfAvailable();
+        if (publisher == null) {
+            throw new IllegalStateException("MQTT 제어 연결이 비활성화되어 LED 명령을 보낼 수 없습니다.");
+        }
         String command;
 
         if (Boolean.TRUE.equals(requestDto.getLedMode())) {
@@ -158,8 +188,11 @@ public class DeviceService {
             command = Boolean.TRUE.equals(requestDto.getLedStatus()) ? "O" : "o";
         }
 
-        mqttPublisherProvider.ifAvailable(publisher ->
-                publisher.publishCommand(serialNumber, command));
+        try {
+            publisher.publishCommand(serialNumber, command);
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("MQTT 브로커에 LED 명령을 보낼 수 없습니다.", e);
+        }
     }
 
     @Transactional
