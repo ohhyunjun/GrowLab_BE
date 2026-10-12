@@ -4,7 +4,10 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
-application.properties
+.env
+.env.*
+!.env.example
+uploads/
 ### STS ###
 .apt_generated
 .classpath

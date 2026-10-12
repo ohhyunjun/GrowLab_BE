@@ -15,6 +15,11 @@ public class SampleController {
         return ResponseEntity.ok(new SampleResponseDto("Login is not required."));
     }
 
+    @GetMapping("version")
+    public ResponseEntity<SampleResponseDto> version() {
+        return ResponseEntity.ok(new SampleResponseDto("build-2026-07-07-error-permit"));
+    }
+
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("adminOnly")
     public ResponseEntity<SampleResponseDto> getSampleWithAdmin() {

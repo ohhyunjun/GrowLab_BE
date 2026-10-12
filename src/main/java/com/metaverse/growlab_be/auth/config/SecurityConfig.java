@@ -60,11 +60,21 @@ public class SecurityConfig {
 
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // 1. 인증 없이 접근 가능한 공개 API
-                        .requestMatchers("/api/auth/**", "/api/sample/**", "/uploads/**" ).permitAll()
+                        // Error dispatch must remain public so real 4xx/5xx errors are not masked as 401.
+                        .requestMatchers("/error").permitAll()
 
-                        //Flask 서버 인증 없이 접근 허용
-                        .requestMatchers(HttpMethod.POST, "/api/predictions").permitAll()
+                        // 1. 인증 없이 접근 가능한 공개 API
+                        .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/auth/email/send-code",
+                                "/api/auth/email/verify-code",
+                                "/api/auth/password-reset/send-code",
+                                "/api/auth/password-reset",
+                                "/api/auth/find-id/send-code",
+                                "/api/auth/find-id").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/api/auth/username", "/api/auth/password").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/auth/withdraw").authenticated()
+                        .requestMatchers("/api/sample/**", "/uploads/**").permitAll()
 
                         // 농산물 가격 조회 허용 추가 (GET 요청만 인증 없이 통과)
                         .requestMatchers(HttpMethod.GET, "/api/prices/**").permitAll()
@@ -73,6 +83,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/sensor_logs/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/photos").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/notices/alert").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/device-selftests").permitAll()
 
                         // 실시간 센서값 수신 + SSE 구독
                         .requestMatchers(HttpMethod.POST, "/api/sensor_logs/realtime").permitAll()

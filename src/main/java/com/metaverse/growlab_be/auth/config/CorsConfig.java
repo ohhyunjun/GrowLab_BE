@@ -8,6 +8,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Configuration
 public class CorsConfig {
@@ -17,10 +18,14 @@ public class CorsConfig {
         CorsConfiguration corsConfiguration = new CorsConfiguration();
         
         corsConfiguration.setAllowCredentials(true);
-        corsConfiguration.setAllowedOrigins(Arrays.asList(
-                "http://localhost:5173", "http://127.0.0.1:5173", // React+vite FE
-                "http://localhost:8000", "http://127.0.0.1:8000", // FastAPI AI BE
-                "null"));
+        String allowedOrigins = System.getenv().getOrDefault(
+                "CORS_ALLOWED_ORIGINS",
+                "http://localhost:5173,http://127.0.0.1:5173"
+        );
+        corsConfiguration.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isBlank())
+                .collect(Collectors.toList()));
         corsConfiguration.setAllowedMethods(List.of("GET","POST","PUT","DELETE","PATCH","OPTIONS"));
         corsConfiguration.setAllowedHeaders(List.of("*"));
         corsConfiguration.setExposedHeaders(List.of("*"));
