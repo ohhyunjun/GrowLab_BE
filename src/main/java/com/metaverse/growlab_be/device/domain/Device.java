@@ -42,7 +42,7 @@ public class Device extends TimeStamped {
     private LocalTime ledOffTime;
 
     @Column(name = "photo_interval")
-    private Integer photoInterval = 12;
+    private Integer photoInterval = 6;
 
     @Column(name = "port_status")
     private String portStatus = "00000000";
@@ -65,6 +65,6 @@ public class Device extends TimeStamped {
         this.deviceNickname = deviceNickname;
         this.status = false;
         this.ledStatus = false;
-        this.photoInterval = 12;
+        this.photoInterval = 6;
     }
 }

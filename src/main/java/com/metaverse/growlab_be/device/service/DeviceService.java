@@ -36,18 +36,29 @@ public class DeviceService {
     private final DiaryRepository diaryRepository;
     private final ObjectProvider<MqttPublisher> mqttPublisherProvider;
 
+    private static final int MAX_PHOTO_INTERVAL_HOURS = 6;
+
     // 시작 시 포트별 품종을 기준으로 retained thresholds를 다시 발행한다.
     @EventListener(ApplicationReadyEvent.class)
+    @Transactional
     public void publishRetainedThresholdsOnStartup() {
-        mqttPublisherProvider.ifAvailable(publisher ->
-                deviceRepository.findAll().forEach(device -> {
-                    try {
-                        publisher.publishThresholdsForPlants(device.getId(), device.getActivePlants());
-                    } catch (RuntimeException e) {
-                        log.warn("[MQTT] 시작 시 thresholds 동기화 실패 - serial={}", device.getId(), e);
-                    }
-                })
-        );
+        MqttPublisher publisher = mqttPublisherProvider.getIfAvailable();
+        deviceRepository.findAll().forEach(device -> {
+            Integer savedInterval = device.getPhotoInterval();
+            int interval = savedInterval == null ? MAX_PHOTO_INTERVAL_HOURS
+                    : Math.max(1, Math.min(savedInterval, MAX_PHOTO_INTERVAL_HOURS));
+            if (!Integer.valueOf(interval).equals(savedInterval)) {
+                device.setPhotoInterval(interval);
+            }
+            if (publisher != null) {
+                try {
+                    publisher.publishPhotoInterval(device.getId(), interval);
+                    publisher.publishThresholdsForPlants(device.getId(), device.getActivePlants());
+                } catch (RuntimeException e) {
+                    log.warn("[MQTT] 시작 시 기기 설정 동기화 실패 - serial={}", device.getId(), e);
+                }
+            }
+        });
     }
 
     public List<DeviceResponseDto> getUserDevices(User user) {
