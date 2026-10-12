@@ -17,26 +17,33 @@ import java.nio.file.Path;
 @RequiredArgsConstructor
 public class FileService {
     private final FileRepository fileRepository;
+    private final S3StorageService s3StorageService;
 
     @Value("${file.upload-dir}")
     private String uploadDir;
 
-    // 파일 업로드 메서드
+    // 게시글과 일지 파일 모두 동일한 File 엔터티에 기록한다.
     public File uploadFile(Article article, MultipartFile multipartFile) {
-        StoredFile stored = store(multipartFile);
+        StoredFile stored = store(multipartFile, "uploads/article");
         return fileRepository.save(new File(stored.originalName(), stored.storedName(),
                 stored.path(), stored.url(), article));
     }
 
     public File uploadFile(Diary diary, MultipartFile multipartFile) {
-        StoredFile stored = store(multipartFile);
+        StoredFile stored = store(multipartFile, "uploads/diary");
         return fileRepository.save(new File(stored.originalName(), stored.storedName(),
                 stored.path(), stored.url(), diary));
     }
 
-    private StoredFile store(MultipartFile file) {
+    private StoredFile store(MultipartFile file, String folder) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("업로드할 파일이 비어 있습니다.");
+        }
+
+        if (s3StorageService.isEnabled()) {
+            S3StorageService.UploadResult uploaded = s3StorageService.upload(file, folder);
+            return new StoredFile(uploaded.originalFileName(), uploaded.storedFileName(),
+                    uploaded.key(), uploaded.url());
         }
 
         String originalName = file.getOriginalFilename();

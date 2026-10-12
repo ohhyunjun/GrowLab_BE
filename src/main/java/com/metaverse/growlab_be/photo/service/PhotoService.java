@@ -3,6 +3,7 @@ package com.metaverse.growlab_be.photo.service;
 
 import com.metaverse.growlab_be.device.domain.Device;
 import com.metaverse.growlab_be.device.repository.DeviceRepository;
+import com.metaverse.growlab_be.file.service.S3StorageService;
 import com.metaverse.growlab_be.photo.domain.Photo;
 import com.metaverse.growlab_be.photo.dto.GrowthTrendResponseDto;
 import com.metaverse.growlab_be.photo.dto.PhotoRequestDto;
@@ -37,6 +38,7 @@ public class PhotoService {
     private final PhotoRepository  photoRepository;
     private final DeviceRepository deviceRepository;
     private final PlantRepository  plantRepository;
+    private final S3StorageService s3StorageService;
 
     // 단계 반영과 같은 신뢰도 기준. 낮은 신뢰도의 박스는 크기 비교에 쓰지 않는다.
     private static final double MIN_GROWTH_CONFIDENCE = 0.70;
@@ -58,14 +60,21 @@ public class PhotoService {
             throw new IllegalArgumentException("포트 번호(portIndex)가 누락되었습니다.");
         }
 
-        File directory = new File(uploadDir);
-        if (!directory.exists()) directory.mkdirs();
-
-        String extension = getFileExtension(imageFile.getOriginalFilename());
-        String fileName  = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
-                + "_" + UUID.randomUUID() + (extension.isEmpty() ? "" : "." + extension);
-        String filePath  = Paths.get(uploadDir, fileName).toString();
-        imageFile.transferTo(new File(filePath));
+        String fileName;
+        String filePath;
+        if (s3StorageService.isEnabled()) {
+            S3StorageService.UploadResult uploaded = s3StorageService.upload(imageFile, "uploads/camera");
+            fileName = uploaded.storedFileName();
+            filePath = uploaded.url();
+        } else {
+            File directory = new File(uploadDir);
+            if (!directory.exists()) directory.mkdirs();
+            String extension = getFileExtension(imageFile.getOriginalFilename());
+            fileName = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
+                    + "_" + UUID.randomUUID() + (extension.isEmpty() ? "" : "." + extension);
+            filePath = Paths.get(uploadDir, fileName).toString();
+            imageFile.transferTo(new File(filePath));
+        }
 
         String  growthResult  = dto.getGrowthResult()      != null ? dto.getGrowthResult()      : "no_detection";
         Double  growthConf    = dto.getGrowthConfidence()  != null ? dto.getGrowthConfidence()  : 0.0;

@@ -7,6 +7,7 @@ import com.metaverse.growlab_be.photo.dto.GrowthTrendResponseDto;
 import com.metaverse.growlab_be.photo.repository.PhotoRepository;
 import com.metaverse.growlab_be.plant.domain.Plant;
 import com.metaverse.growlab_be.plant.repository.PlantRepository;
+import com.metaverse.growlab_be.file.service.S3StorageService;
 import com.metaverse.growlab_be.species.domain.Species;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,7 +40,7 @@ class PhotoServiceGrowthTrendTest {
         photoRepository = mock(PhotoRepository.class);
         deviceRepository = mock(DeviceRepository.class);
         plantRepository = mock(PlantRepository.class);
-        photoService = new PhotoService(photoRepository, deviceRepository, plantRepository);
+        photoService = new PhotoService(photoRepository, deviceRepository, plantRepository, mock(S3StorageService.class));
         device = new Device(SERIAL, "테스트기기");
         when(deviceRepository.findById(SERIAL)).thenReturn(Optional.of(device));
     }
