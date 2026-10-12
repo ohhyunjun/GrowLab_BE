@@ -38,5 +38,14 @@ public class SensorLogController {
         return sensorLogService.createEmitter(serialNumber);
     }
 
+    //4. AWS 배포 환경용 최신 센서값 조회 (SSE 대신 폴링)
+    @GetMapping("/latest/{serialNumber}")
+    public ResponseEntity<SensorLogRequestDto> getLatestSensorLog(@PathVariable String serialNumber) {
+        SensorLogRequestDto latest = sensorLogService.getLatestData(serialNumber);
+        if (latest == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(latest);
+    }
 
 }

@@ -36,12 +36,29 @@ public class SensorLog extends TimeStamped {
     @Column()
     private Boolean water_level_status;
 
-    public SensorLog(Device device, Float temperature, Float humidity, Float ph, Float tds, Boolean water_level_status) {
+    @Column(name = "led_status")
+    private Boolean led_status;
+
+    @Column(name = "led_on_minutes_1h")
+    private Integer led_on_minutes_1h;
+
+    public SensorLog(
+            Device device,
+            Float temperature,
+            Float humidity,
+            Float ph,
+            Float tds,
+            Boolean water_level_status,
+            Boolean led_status,
+            Integer led_on_minutes_1h
+    ) {
         this.device = device;
         this.temperature = temperature;
         this.humidity = humidity;
         this.ph = ph;
         this.tds = tds;
         this.water_level_status = water_level_status;
+        this.led_status = led_status;
+        this.led_on_minutes_1h = led_on_minutes_1h;
     }
 }

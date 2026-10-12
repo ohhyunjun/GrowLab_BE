@@ -12,4 +12,6 @@ public class SensorLogRequestDto {
     private Float ph;
     private Float tds;
     private Boolean water_level_status;
+    private Boolean led_status;
+    private Integer led_on_minutes_1h;
 }

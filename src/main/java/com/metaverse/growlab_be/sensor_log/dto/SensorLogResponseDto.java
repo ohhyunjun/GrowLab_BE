@@ -15,6 +15,8 @@ public class SensorLogResponseDto {
     private Float ph;
     private Float tds;
     private Boolean water_level_status;
+    private Boolean led_status;
+    private Integer led_on_minutes_1h;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
@@ -31,6 +33,8 @@ public class SensorLogResponseDto {
         this.ph = sensorLog.getPh();
         this.tds = sensorLog.getTds();
         this.water_level_status = sensorLog.getWater_level_status();
+        this.led_status = sensorLog.getLed_status();
+        this.led_on_minutes_1h = sensorLog.getLed_on_minutes_1h();
 
         this.createdAt = sensorLog.getCreatedAt();
 

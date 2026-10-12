@@ -52,7 +52,9 @@ public class SensorLogService {
                 sensorLogRequestDto.getHumidity(),
                 sensorLogRequestDto.getPh(),
                 sensorLogRequestDto.getTds(),
-                sensorLogRequestDto.getWater_level_status()
+                sensorLogRequestDto.getWater_level_status(),
+                sensorLogRequestDto.getLed_status(),
+                sensorLogRequestDto.getLed_on_minutes_1h()
         );
         SensorLog savedLog = sensorLogRepository.save(sensorLog);
         triggerInference(device, savedLog);
@@ -74,22 +76,24 @@ public class SensorLogService {
             payload.put("ph",                 dto.getPh());
             payload.put("tds",                dto.getTds());
             payload.put("water_level_status", dto.getWater_level_status());
+            payload.put("led_status", dto.getLed_status());
+            payload.put("led_on_minutes_1h", dto.getLed_on_minutes_1h());
 
             emitter.send(SseEmitter.event()
                     .name("sensor")
                     .data(payload));
         } catch (IOException e) {
-            emitterMap.remove(dto.getSerial_number());
+            emitterMap.remove(dto.getSerial_number(), emitter);
         }
     }
 
     public SseEmitter createEmitter(String serialNumber) {
-        SseEmitter emitter = new SseEmitter(5 * 60 * 1000L);
+        SseEmitter emitter = new SseEmitter(15 * 60 * 1000L);
 
         emitterMap.put(serialNumber, emitter);
-        emitter.onCompletion(() -> emitterMap.remove(serialNumber));
-        emitter.onTimeout(()    -> emitterMap.remove(serialNumber));
-        emitter.onError((e)     -> emitterMap.remove(serialNumber));
+        emitter.onCompletion(() -> emitterMap.remove(serialNumber, emitter));
+        emitter.onTimeout(() -> emitterMap.remove(serialNumber, emitter));
+        emitter.onError(e -> emitterMap.remove(serialNumber, emitter));
 
         SensorLogRequestDto latest = latestDataMap.get(serialNumber);
         try {
@@ -101,12 +105,14 @@ public class SensorLogService {
                 payload.put("ph",                 latest.getPh());
                 payload.put("tds",                latest.getTds());
                 payload.put("water_level_status", latest.getWater_level_status());
-                emitter.send(SseEmitter.event().name("sensor").data(payload));
+                payload.put("led_status", latest.getLed_status());
+                payload.put("led_on_minutes_1h", latest.getLed_on_minutes_1h());
+                emitter.send(SseEmitter.event().name("sensor").reconnectTime(5_000L).data(payload));
             } else {
-                emitter.send(SseEmitter.event().name("connect").data("connected"));
+                emitter.send(SseEmitter.event().name("connect").reconnectTime(5_000L).data("connected"));
             }
         } catch (IOException e) {
-            emitterMap.remove(serialNumber);
+            emitterMap.remove(serialNumber, emitter);
         }
 
         return emitter;
