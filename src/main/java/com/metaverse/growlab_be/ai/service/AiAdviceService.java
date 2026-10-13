@@ -92,14 +92,26 @@ public class AiAdviceService {
         String note = species != null && species.getAiPromptGuideline() != null && !species.getAiPromptGuideline().isBlank()
                 ? species.getAiPromptGuideline() : "등록된 생육 특이사항 없음";
 
-        String gapText  = req.getGapPercent() != null ? String.format("%.1f%%", req.getGapPercent()) : "정보 없음";
-        String rankText = (req.getRank() != null && req.getPortCount() != null) ? (req.getPortCount() + "중 " + req.getRank() + "위") : "정보 없음";
+        String sizeChangeText = (req.getSizeChangeDays() != null && req.getSizeChangePercent() != null)
+                ? String.format("%d일 전보다 약 %+.0f%%", req.getSizeChangeDays(), req.getSizeChangePercent()) : "정보 없음";
+        String speedText = "비교할 기록 부족";
+        if (req.getSpeedVerdict() != null && req.getOwnRatePerDay() != null && req.getReferenceRatePerDay() != null) {
+            String verdict = switch (req.getSpeedVerdict()) {
+                case "faster" -> "더 빠름";
+                case "slower" -> "더 느림";
+                default -> "비슷함";
+            };
+            speedText = String.format("%s (이 포트 하루 약 %+.0f%%, 다른 재배 %s 하루 약 %+.0f%%)", verdict,
+                    req.getOwnRatePerDay(),
+                    req.getReferencePlantCount() != null ? req.getReferencePlantCount() + "개" : "",
+                    req.getReferenceRatePerDay());
+        }
         String sizeText = req.getCurrentSizePercent() != null ? String.format("%.1f%%", req.getCurrentSizePercent()) : "정보 없음";
         String diseaseText = (req.getDiseaseResult() != null && !req.getDiseaseResult().isBlank()) ? req.getDiseaseResult() : "질병 미검출";
 
         String prompt = String.format("""
-        가정용 스마트팜의 한 포트 상태입니다. 우리 시스템은 규칙 기반으로 이 포트를 1차 판단했습니다.
-        아래 데이터를 근거로 성장이 느린(또는 이상) 원인과 대응을 분석해 주세요.
+        가정용 스마트팜의 한 포트 상태입니다. 아래 데이터를 근거로 이 포트의 상태를 진단하고,
+        문제가 보이면 원인과 대응을 분석해 주세요.
 
         [식물]
         - 품종: %s
@@ -107,10 +119,10 @@ public class AiAdviceService {
         - 생육 단계: %s
         - 평균 성숙 기간: %s
 
-        [시스템 규칙 1차 판정]
-        - 같은 기기 다른 포트(또래) 대비 성장 격차: %s
-        - 순위: %s
+        [사진 관측] 사진 속 검출 박스 넓이 기준의 참고값이며 실제 크기를 잰 것이 아닙니다.
+        - 이 포트의 과거 대비 크기: %s
         - 현재 크기(화면 대비): %s
+        - 같은 품종의 다른 재배가 심은 뒤 같은 시기에 보인 성장 속도와 비교: %s
         - 질병 라벨: %s
 
         [최근 센서]
@@ -122,12 +134,13 @@ public class AiAdviceService {
         - 생육 특이사항: %s
 
         '감지된 문제', '가능한 원인', '권장 조치' 세 항목으로 나눠 각 1~3줄로 한국어로 답하세요.
-        마크다운 기호(#, *, - 등)는 쓰지 마세요. 확정 진단이 아니라 참고 추정임을 전제로,
+        마크다운 기호(#, *, - 등)는 쓰지 마세요. '정보 없음'이나 '비교할 기록 부족'인 항목을 근거로
+        성장이 느리다고 단정하지 마세요. 확정 진단이 아니라 참고 추정임을 전제로,
         현장에서 바로 실행 가능한 구체적 조치 위주로 작성하세요.
         """,
                 speciesName, req.getDaysSincePlanted() != null ? req.getDaysSincePlanted() : 0,
                 req.getPlantStage() != null ? req.getPlantStage() : "미등록", matureText,
-                gapText, rankText, sizeText, diseaseText,
+                sizeChangeText, sizeText, speedText, diseaseText,
                 temperature, tempRange, humidity, ph, phRange, tds, tdsRange, waterLevel, note);
 
         String system = "당신은 스마트팜 작물 진단 전문가입니다. 주어진 센서·성장 데이터로 성장 저해나 이상의 원인을 추정하고 "
