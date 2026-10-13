@@ -9,6 +9,7 @@ import com.metaverse.growlab_be.notice.repository.NoticeRepository;
 import com.metaverse.growlab_be.photo.domain.Photo;
 import com.metaverse.growlab_be.photo.repository.PhotoRepository;
 import com.metaverse.growlab_be.sensor_log.repository.SensorLogRepository;
+import com.metaverse.growlab_be.sensor_log.service.SensorLogService;
 import com.metaverse.growlab_be.species.domain.Species;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.List;
 
@@ -35,6 +37,7 @@ public class DeviceService {
     private final NoticeRepository noticeRepository;
     private final DiaryRepository diaryRepository;
     private final ObjectProvider<MqttPublisher> mqttPublisherProvider;
+    private final SensorLogService sensorLogService;
 
     private static final int MAX_PHOTO_INTERVAL_HOURS = 6;
 
@@ -75,9 +78,28 @@ public class DeviceService {
                             .sorted(Comparator.comparingInt(DeviceResponseDto.PlantSummaryDto::getPortIndex))
                             .toList();
 
-                    return new DeviceResponseDto(device, lastPhotoAt, plantSummaries);
+                    return new DeviceResponseDto(device, lastPhotoAt, plantSummaries,
+                            currentLedStatus(device, LocalTime.now()));
                 })
                 .toList();
+    }
+
+    // 현재 LED 상태: 기기가 보고한 실제 값 > 자동 모드의 일정 계산 > 마지막 수동 명령.
+    Boolean currentLedStatus(Device device, LocalTime now) {
+        Boolean reported = sensorLogService.getReportedLedStatus(device.getId());
+        if (reported != null) return reported;
+        if (Boolean.TRUE.equals(device.getLedMode())
+                && device.getLedOnTime() != null && device.getLedOffTime() != null) {
+            return isWithinSchedule(device.getLedOnTime(), device.getLedOffTime(), now);
+        }
+        return device.getLedStatus();
+    }
+
+    // 기기(led_scheduler)와 같은 규칙: 시작=종료면 꺼짐, 자정을 넘는 일정도 처리한다.
+    private static boolean isWithinSchedule(LocalTime on, LocalTime off, LocalTime now) {
+        if (on.equals(off)) return false;
+        if (on.isBefore(off)) return !now.isBefore(on) && now.isBefore(off);
+        return !now.isBefore(on) || now.isBefore(off);
     }
 
     public List<AdminDeviceResponseDto> getAllDevicesForAdmin() {

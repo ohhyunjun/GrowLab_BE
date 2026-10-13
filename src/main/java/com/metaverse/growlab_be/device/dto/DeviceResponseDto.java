@@ -38,10 +38,16 @@ public class DeviceResponseDto {
     private List<PlantSummaryDto> plants;
 
     public DeviceResponseDto(Device device, LocalDateTime lastPhotoAt, List<PlantSummaryDto> plants) {
+        this(device, lastPhotoAt, plants, device.getLedStatus());
+    }
+
+    // ledStatus: 화면에 보여줄 현재 LED 상태. device.ledStatus는 마지막 수동 명령일 뿐이라 따로 받는다.
+    public DeviceResponseDto(Device device, LocalDateTime lastPhotoAt, List<PlantSummaryDto> plants,
+                             Boolean ledStatus) {
         this.serialNumber   = device.getId();
         this.deviceNickname = device.getDeviceNickname();
         this.status         = device.getStatus();
-        this.ledStatus      = device.getLedStatus();
+        this.ledStatus      = ledStatus;
         this.photoInterval  = device.getPhotoInterval();
         this.lastPhotoAt    = lastPhotoAt;
         this.portStatus     = device.getPortStatus();

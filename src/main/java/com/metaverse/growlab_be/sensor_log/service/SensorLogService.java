@@ -41,6 +41,10 @@ public class SensorLogService {
 
     private final Map<String, SseEmitter> emitterMap = new ConcurrentHashMap<>();
     private final Map<String, SensorLogRequestDto> latestDataMap = new ConcurrentHashMap<>();
+    private final Map<String, Long> latestReceivedAtMap = new ConcurrentHashMap<>();
+
+    // 실시간 보고는 1분 주기다. 이보다 오래된 값은 현재 상태로 보지 않는다.
+    private static final long REPORTED_STATE_MAX_AGE_MS = Duration.ofMinutes(5).toMillis();
 
     @Transactional
     public SensorLogResponseDto createSensorLog (SensorLogRequestDto sensorLogRequestDto) {
@@ -63,6 +67,7 @@ public class SensorLogService {
     public void pushRealtime(SensorLogRequestDto dto) {
         getValidDeviceById(dto.getSerial_number());
         latestDataMap.put(dto.getSerial_number(), dto);
+        latestReceivedAtMap.put(dto.getSerial_number(), System.currentTimeMillis());
         SseEmitter emitter = emitterMap.get(dto.getSerial_number());
         if (emitter == null) return;
 
@@ -202,5 +207,13 @@ public class SensorLogService {
 
     public SensorLogRequestDto getLatestData(String serialNumber) {
         return latestDataMap.get(serialNumber);
+    }
+
+    // 기기가 최근 실시간 보고에 실어 보낸 실제 LED 상태. 보고가 없거나 오래됐으면 null.
+    public Boolean getReportedLedStatus(String serialNumber) {
+        Long receivedAt = latestReceivedAtMap.get(serialNumber);
+        if (receivedAt == null || System.currentTimeMillis() - receivedAt > REPORTED_STATE_MAX_AGE_MS) return null;
+        SensorLogRequestDto latest = latestDataMap.get(serialNumber);
+        return latest == null ? null : latest.getLed_status();
     }
 }
