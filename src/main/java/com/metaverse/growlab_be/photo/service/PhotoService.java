@@ -24,9 +24,12 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.UUID;
 
@@ -91,13 +94,22 @@ public class PhotoService {
     }
 
     /**
-     * 포트별 성장 추이(관측 크기) + 또래 비교.
-     * 신뢰도 70% 이상인 boxAreaRatio(프레임 대비 비율)만 관측값으로 사용한다.
+     * 포트별 성장 추이.
      *
-     * 비교축은 달력 날짜가 아니라 "파종 후 경과일"이다. 포트마다 파종 시점이 다르므로 같은
-     * 날짜끼리 비교하면 늦게 심은 포트가 언제나 뒤처진 것으로 나온다(순차 파종을 하면 항상 틀린다).
-     * 또래는 같은 품종의 Plant가 등록된 포트만 쓰며, 같은 경과일에 촬영된 값끼리 비교한다.
-     * 미검출·낮은 신뢰도·오래된 값은 끌어오지 않는다.
+     * 크기와 속도를 다르게 다룬다.
+     *  - 크기  : 그 포트 자신의 시계열과 "며칠 전보다 몇 % 커졌는지"로 보여준다. 크기는 포트가 화면 어디에
+     *            어떻게 찍히느냐에 좌우되므로 다른 포트의 크기와 견주지 않는다.
+     *  - 속도  : "하루에 몇 %씩 자랐는지"는 찍히는 자리와 무관한 비율이라 포트끼리 견줄 수 있다.
+     *            같은 기기에서 같은 품종을 키운 다른 재배 기록(재배 중 + 종료)이 "심은 뒤 같은 시기"에
+     *            보인 속도와 비교한다. 심은 시기가 달라도, 이미 수확한 개체여도 비교 대상이 된다.
+     *
+     * 신뢰도 70% 이상인 사진만 쓰고, 크기는 검출 박스 목록에서 고른 식물 범위({@link PlantExtent})의
+     * 프레임 대비 면적 비율이다. 식물이 화면 밖으로 잘린 사진은 크기를 알 수 없어 뺀다.
+     * 그래프에는 그날 사진의 중앙값을 하루 값으로 쓰고, 성장 속도는 사진 하나하나를 찍힌 시각으로
+     * 비교해 구한다. 포트를 옮겨 찍히는 자리가 바뀐 경우의 처리는 {@link PlantSeries} 참고.
+     *
+     * rank·portCount·gapPercent·peerPoints는 같은 경과일의 크기를 활성 포트끼리 견주던 예전 값이다.
+     * 응답 형식을 유지하려고 남겨 두었고, 포트 상태 판정에는 쓰지 않는다.
      */
     @Transactional(readOnly = true)
     public GrowthTrendResponseDto getGrowthTrend(String serialNumber, Integer portIndex) {
@@ -105,18 +117,23 @@ public class PhotoService {
                 .orElseThrow(() -> new IllegalArgumentException("등록되지 않은 기기입니다: " + serialNumber));
 
         // 활성 포트 = Plant가 등록된 포트. 파종 시각이 경과일 계산의 기준이 된다.
-        Map<Integer, LocalDate> plantedDateByPort = new HashMap<>();
         Map<Integer, Plant> plantByPort = new HashMap<>();
         for (Plant plant : plantRepository.findByDeviceIdAndEndedAtIsNull(serialNumber)) {
             if (plant.getPortIndex() == null || plant.getPlantedAt() == null) continue;
-            plantedDateByPort.put(plant.getPortIndex(), plant.getPlantedAt().toLocalDate());
             plantByPort.put(plant.getPortIndex(), plant);
+        }
+        // 종료된 재배 기록은 품종 기준에만 쓴다. 사진은 그 식물이 포트에 있던 기간의 것만 붙인다.
+        Map<Integer, List<Plant>> endedByPort = new HashMap<>();
+        for (Plant plant : plantRepository.findByDeviceIdAndEndedAtIsNotNull(serialNumber)) {
+            if (plant.getPortIndex() == null || plant.getPlantedAt() == null || plant.getEndedAt() == null) continue;
+            endedByPort.computeIfAbsent(plant.getPortIndex(), k -> new ArrayList<>()).add(plant);
         }
 
         List<Photo> photos = photoRepository.findByDeviceAndBoxAreaRatioIsNotNullOrderByCreatedAtAsc(device);
+        Plant selfPlant = plantByPort.get(portIndex);
 
-        // 포트 -> (경과일 -> [합, 개수]). 빈 포트와 파종 전 사진은 제외한다.
-        Map<Integer, TreeMap<Long, double[]>> byPort = new HashMap<>();
+        // 식물 -> 관측 목록. 빈 포트와 파종 전 사진은 제외한다.
+        Map<Plant, List<PlantSeries.Observation>> observed = new IdentityHashMap<>();
         Map<Long, LocalDate> selfDateByElapsed = new HashMap<>();   // 화면 라벨용: 경과일 -> 그날 날짜
         for (Photo p : photos) {
             if (p.getBoxAreaRatio() == null || p.getPortIndex() == null || p.getCreatedAt() == null
@@ -125,41 +142,47 @@ public class PhotoService {
                     || p.getBoxAreaRatio() > 1
                     || p.getGrowthStageResult() == null
                     || "no_detection".equalsIgnoreCase(p.getGrowthStageResult())) continue;
-            LocalDate planted = plantedDateByPort.get(p.getPortIndex());
-            if (planted == null) continue;                          // 식물이 없는(수확해 비운) 포트
+            // 검출 목록이 저장되지 않은 옛 사진만 저장된 최대 면적 박스를 그대로 쓴다.
+            PlantExtent.Result extent = PlantExtent.of(p.getDetectionsJson());
+            Plant owner = ownerOf(p, plantByPort, endedByPort);
+            if (owner == null) continue;                            // 식물이 없던 때의 사진
             LocalDate shot = p.getCreatedAt().toLocalDate();
-            long elapsed = ChronoUnit.DAYS.between(planted, shot);
-            if (elapsed < 0) continue;                              // 파종 전 사진
-            double[] acc = byPort.computeIfAbsent(p.getPortIndex(), k -> new TreeMap<>())
-                    .computeIfAbsent(elapsed, k -> new double[2]);
-            acc[0] += p.getBoxAreaRatio();
-            acc[1] += 1;
-            if (p.getPortIndex().equals(portIndex)) selfDateByElapsed.putIfAbsent(elapsed, shot);
+            long elapsed = ChronoUnit.DAYS.between(owner.getPlantedAt().toLocalDate(), shot);
+            observed.computeIfAbsent(owner, k -> new ArrayList<>()).add(extent != null
+                    ? new PlantSeries.Observation(p.getCreatedAt(), elapsed, extent.areaRatio(), extent.cut(),
+                            extent.centerX(), extent.centerY())
+                    : new PlantSeries.Observation(p.getCreatedAt(), elapsed, p.getBoxAreaRatio(), false, null, null));
+            if (owner == selfPlant) selfDateByElapsed.putIfAbsent(elapsed, shot);
         }
 
-        // 포트 -> (경과일 -> 평균)  ※ 조기 반환 전에 계산: 포트별 상태(점 색) 산출에 필요
+        // 식물 -> 정리된 관측. 쓸 수 있는 날이 하나도 없는 식물은 넣지 않는다.
+        Map<Plant, PlantSeries> seriesByPlant = new IdentityHashMap<>();
+        for (Map.Entry<Plant, List<PlantSeries.Observation>> e : observed.entrySet()) {
+            PlantSeries series = PlantSeries.of(e.getValue());
+            if (!series.daily().isEmpty()) seriesByPlant.put(e.getKey(), series);
+        }
+        // 활성 포트 -> (경과일 -> 그날의 크기)
         Map<Integer, TreeMap<Long, Double>> dailyAvg = new HashMap<>();
-        for (Map.Entry<Integer, TreeMap<Long, double[]>> e : byPort.entrySet()) {
-            TreeMap<Long, Double> m = new TreeMap<>();
-            for (Map.Entry<Long, double[]> de : e.getValue().entrySet()) {
-                m.put(de.getKey(), de.getValue()[0] / de.getValue()[1]);
-            }
-            dailyAvg.put(e.getKey(), m);
+        for (Map.Entry<Integer, Plant> e : plantByPort.entrySet()) {
+            PlantSeries series = seriesByPlant.get(e.getValue());
+            if (series != null) dailyAvg.put(e.getKey(), series.daily());
         }
 
         // 비교 근거가 없으면 포트 상태를 정상으로 추정하지 않는다.
-        List<GrowthTrendResponseDto.PortHealth> portsHealth = computePortsHealth(plantByPort, dailyAvg);
+        List<GrowthTrendResponseDto.PortHealth> portsHealth = computePortsHealth(plantByPort, seriesByPlant);
 
         // 데이터 없음(로컬/초기) → 빈 시계열로 반환. 프론트가 "데이터 없음" 처리. (포트 상태는 채워 보낸다)
-        if (!byPort.containsKey(portIndex)) {
+        PlantSeries selfSeries = seriesByPlant.get(selfPlant);
+        if (selfSeries == null) {
             return new GrowthTrendResponseDto(portIndex, List.of(), List.of(),
-                    null, null, null, null, portsHealth);
+                    null, null, null, null, portsHealth,
+                    GrowthTrendResponseDto.SizeChange.pending(), GrowthTrendResponseDto.GrowthRate.pending(),
+                    GrowthTrendResponseDto.Reference.notReady(), null);
         }
 
-        TreeMap<Long, Double> selfDaily = dailyAvg.get(portIndex);
+        TreeMap<Long, Double> selfDaily = selfSeries.daily();
         GrowthComparison comparison = comparePort(plantByPort, dailyAvg, portIndex);
 
-        // 비교가 성립하기 전에는 본인 관측만 표시한다.
         List<GrowthTrendResponseDto.Point> points = new ArrayList<>();
         List<GrowthTrendResponseDto.Point> peerPoints = new ArrayList<>();
         for (Map.Entry<Long, Double> e : selfDaily.entrySet()) {
@@ -174,26 +197,118 @@ public class PhotoService {
             }
         }
 
+        RateReference rateReference = rateReferenceOf(selfPlant, seriesByPlant);
+        GrowthTrendResponseDto.Reference reference = rateReference == null
+                ? GrowthTrendResponseDto.Reference.notReady()
+                : new GrowthTrendResponseDto.Reference(true, round1(rateReference.median()),
+                        round1(rateReference.low()), round1(rateReference.high()),
+                        rateReference.count(), rateReference.verdict());
+
         return new GrowthTrendResponseDto(portIndex, points, peerPoints, comparison.rank(),
-                comparison.portCount(), comparison.gapPercent(), round4(selfDaily.lastEntry().getValue()), portsHealth);
+                comparison.portCount(), comparison.gapPercent(), round4(selfDaily.lastEntry().getValue()), portsHealth,
+                sizeChangeOf(selfSeries), growthRateOf(selfSeries), reference, selfSeries.lastViewChangeDay());
     }
 
-    // 각 포트의 상태: 질병 > 충분한 비교에 따른 주의/정상 > 관측 대기.
-    private static final double STALL_GAP_THRESHOLD = -15.0;
+    // 사진이 찍힌 시각에 그 포트에 있던 식물. 종료된 재배는 [파종, 종료) 구간으로, 재배 중인 식물은 파종일 이후로 판정한다.
+    private Plant ownerOf(Photo photo, Map<Integer, Plant> plantByPort, Map<Integer, List<Plant>> endedByPort) {
+        LocalDateTime shotAt = photo.getCreatedAt();
+        for (Plant ended : endedByPort.getOrDefault(photo.getPortIndex(), List.of())) {
+            if (!shotAt.isBefore(ended.getPlantedAt()) && shotAt.isBefore(ended.getEndedAt())) return ended;
+        }
+        Plant active = plantByPort.get(photo.getPortIndex());
+        if (active == null || shotAt.toLocalDate().isBefore(active.getPlantedAt().toLocalDate())) return null;
+        return active;
+    }
+
+    // ── 1) 이 포트의 과거 대비 크기 ──────────────────────────────
+    // 최근 7일 안에서 가장 이른 날의 크기와 가장 최근 날의 크기를 견준다. 포트를 옮겼으면 옮긴 뒤의 날끼리만 견준다.
+    private static final int SIZE_CHANGE_WINDOW_DAYS = 7;
+
+    private GrowthTrendResponseDto.SizeChange sizeChangeOf(PlantSeries self) {
+        long latestDay = self.daily().lastKey();
+        NavigableMap<Long, Double> recent = self.latestViewDaily(latestDay - SIZE_CHANGE_WINDOW_DAYS, latestDay);
+        if (recent.size() < 2) return GrowthTrendResponseDto.SizeChange.pending();
+        double from = recent.firstEntry().getValue();
+        double to = recent.lastEntry().getValue();
+        return new GrowthTrendResponseDto.SizeChange(true, (int) (recent.lastKey() - recent.firstKey()),
+                round4(from), round4(to), round1((to / from - 1) * 100));
+    }
+
+    // ── 2) 이 포트의 속도 (다른 재배와 견주는 데 쓴다) ────────────
+    // 최근 7일 안의 사진으로 하루 성장률을 구한다. 관측일이 3일 미만이거나 이틀 이상 벌어지지 않으면 내지 않는다.
+    // 포트를 옮겨 찍히는 자리가 바뀌었으면, 최근 속도는 지금 자리에서 본 관측만으로 계산한다.
+    private static final int RATE_WINDOW_DAYS = 7;
+    // 박스 면적은 사진마다 흔들리므로 ±1%/일 안쪽은 변화로 보지 않는다.
+    // 하루 성장률(%)은 식물이 클수록 자연히 낮아지므로, 직전 구간보다 낮다는 것만으로는 상태를 바꾸지 않는다.
+    private static final double RATE_FLAT_BAND = 1.0;
+
+    private GrowthTrendResponseDto.GrowthRate growthRateOf(PlantSeries self) {
+        long latestDay = self.daily().lastKey();
+        List<PlantSeries.Observation> recent = self.latestViewPhotos(latestDay - RATE_WINDOW_DAYS + 1, latestDay);
+        Double rate = GrowthMath.ratePerDayPercent(List.of(recent));
+        if (rate == null) return GrowthTrendResponseDto.GrowthRate.pending();
+
+        Double previous = GrowthMath.ratePerDayPercent(self.sameViewPhotos(
+                latestDay - 2L * RATE_WINDOW_DAYS + 1, latestDay - RATE_WINDOW_DAYS));
+        String status;
+        if (rate <= -RATE_FLAT_BAND) status = "down";
+        else if (rate < RATE_FLAT_BAND) status = "flat";
+        else status = "growing";
+        return new GrowthTrendResponseDto.GrowthRate(round1(rate), previous != null ? round1(previous) : null,
+                status, (int) recent.stream().mapToLong(PlantSeries.Observation::elapsedDay).distinct().count(),
+                (int) (recent.get(recent.size() - 1).elapsedDay() - recent.get(0).elapsedDay()));
+    }
+
+    // ── 3) 같은 시기의 속도 비교 ───────────────────────────────────
+    // 같은 품종의 다른 재배 기록이 이 수 이상 있어야 견줄 기준으로 쓴다.
+    private static final int MIN_REFERENCE_PLANTS = 3;
+    // 하루 성장률 차이가 이 %p 안쪽이면 비슷한 것으로 본다. 관측일이 하루 이틀 달라지는 것만으로도 이 정도는 움직인다.
+    private static final double RATE_SIMILAR_BAND = 3.0;
+
+    /** verdict: faster · similar · slower. median/low/high는 다른 재배 기록들의 하루 성장률(%). */
+    private record RateReference(double median, double low, double high, int count, String verdict) {}
+
+    // 이 식물의 최근 속도를, 같은 품종의 다른 재배 기록이 심은 뒤 같은 시기(같은 경과일 구간)에 보인 속도와 견준다.
+    private RateReference rateReferenceOf(Plant self, Map<Plant, PlantSeries> seriesByPlant) {
+        PlantSeries own = self == null ? null : seriesByPlant.get(self);
+        if (own == null || self.getSpecies() == null || self.getSpecies().getId() == null) return null;
+        long latestDay = own.daily().lastKey();
+        long fromDay = latestDay - RATE_WINDOW_DAYS + 1;
+        Double ownRate = GrowthMath.ratePerDayPercent(List.of(own.latestViewPhotos(fromDay, latestDay)));
+        if (ownRate == null) return null;
+
+        List<Double> rates = new ArrayList<>();
+        for (Map.Entry<Plant, PlantSeries> entry : seriesByPlant.entrySet()) {
+            Plant other = entry.getKey();
+            if (other == self || other.getSpecies() == null
+                    || !self.getSpecies().getId().equals(other.getSpecies().getId())) continue;
+            Double rate = GrowthMath.ratePerDayPercent(entry.getValue().sameViewPhotos(fromDay, latestDay));
+            if (rate != null) rates.add(rate);
+        }
+        if (rates.size() < MIN_REFERENCE_PLANTS) return null;
+        Collections.sort(rates);
+        double median = GrowthMath.percentile(rates, 0.50);
+        double low = GrowthMath.percentile(rates, 0.25);
+        double high = GrowthMath.percentile(rates, 0.75);
+        // 다른 기록들의 범위를 벗어나고 중앙값과도 뚜렷이 벌어졌을 때만 빠르다·느리다고 한다.
+        String verdict = ownRate < low && ownRate <= median - RATE_SIMILAR_BAND ? "slower"
+                : ownRate > high && ownRate >= median + RATE_SIMILAR_BAND ? "faster" : "similar";
+        return new RateReference(median, low, high, rates.size(), verdict);
+    }
+
+    // 각 포트의 상태: 질병 > 같은 시기의 속도 비교 > 관측 대기. 크기는 포트끼리 견주지 않는다.
     private List<GrowthTrendResponseDto.PortHealth> computePortsHealth(
-            Map<Integer, Plant> plantByPort, Map<Integer, TreeMap<Long, Double>> dailyAvg) {
+            Map<Integer, Plant> plantByPort, Map<Plant, PlantSeries> seriesByPlant) {
         List<GrowthTrendResponseDto.PortHealth> out = new ArrayList<>();
         for (Map.Entry<Integer, Plant> e : plantByPort.entrySet()) {
-            int port = e.getKey();
             String health = "pending";
             if (isDiseasedLabel(e.getValue().getDiseaseResult())) {
                 health = "bad";
             } else {
-                GrowthComparison comparison = comparePort(plantByPort, dailyAvg, port);
-                if (comparison.ready())
-                    health = comparison.gapPercent() <= STALL_GAP_THRESHOLD ? "warn" : "good";
+                RateReference reference = rateReferenceOf(e.getValue(), seriesByPlant);
+                if (reference != null) health = "slower".equals(reference.verdict()) ? "warn" : "good";
             }
-            out.add(new GrowthTrendResponseDto.PortHealth(port, health));
+            out.add(new GrowthTrendResponseDto.PortHealth(e.getKey(), health));
         }
         return out;
     }
