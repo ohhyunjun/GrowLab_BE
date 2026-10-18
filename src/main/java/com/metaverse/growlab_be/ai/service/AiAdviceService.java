@@ -49,7 +49,8 @@ public class AiAdviceService {
                                         "식물 재배에 대한 간결하고 실용적인 조언을 한국어로 제공합니다. " +
                                         "재배 기준이 '기준 미등록'으로 표시된 항목은 해당 작물에 대한 일반적인 재배 지식을 바탕으로 보완해서 판단하세요. " +
                                         "마크다운 문법(###, **, * 등)을 절대 사용하지 마세요. " +
-                                        "환경 전반, 조명 관리, 양액 시스템, 성장 속도 항목으로 나누어 각 항목당 1~2문장으로 답변하세요."),
+                                        "환경 전반, 조명 관리, 양액 시스템 항목으로 나누어 각 항목당 1~2문장으로 답변하세요. " +
+                                        "성장 속도나 생육 진행 정도는 평가하지 마세요."),
                         Map.of("role", "user", "content", prompt)
                 ),
                 "max_tokens", 500,
@@ -105,7 +106,6 @@ public class AiAdviceService {
                     req.getReferencePlantCount() != null ? req.getReferencePlantCount() + "개" : "",
                     req.getReferenceRatePerDay());
         }
-        String sizeText = req.getCurrentSizePercent() != null ? String.format("%.1f%%", req.getCurrentSizePercent()) : "정보 없음";
         String diseaseText = (req.getDiseaseResult() != null && !req.getDiseaseResult().isBlank()) ? req.getDiseaseResult() : "질병 미검출";
 
         String prompt = String.format("""
@@ -119,7 +119,6 @@ public class AiAdviceService {
 
         [사진 관측] 사진 속 검출 박스 넓이 기준의 참고값이며 실제 크기를 잰 것이 아닙니다.
         - 이 포트의 과거 대비 크기: %s
-        - 현재 크기(화면 대비): %s
         - 같은 품종의 다른 재배가 심은 뒤 같은 시기에 보인 성장 속도와 비교: %s
         - 질병 라벨: %s
 
@@ -132,14 +131,17 @@ public class AiAdviceService {
         - 생육 특이사항: %s
 
         '감지된 문제', '가능한 원인', '권장 조치' 세 항목으로 나눠 각 1~3줄로 한국어로 답하세요.
+        마크다운 기호(#, *, - 등)는 쓰지 마세요.
+        성장 문제로 볼 근거는 속도 비교가 '더 느림'이거나 과거 대비 크기가 줄었을 때뿐입니다.
         수확일이나 수확까지 남은 일수는 추정하지 마세요. 수확기 도달일은 별도의 영상 예측 결과로 안내합니다.
-        마크다운 기호(#, *, - 등)는 쓰지 마세요. '정보 없음'이나 '비교할 기록 부족'인 항목을 근거로
-        성장이 느리다고 단정하지 마세요. 확정 진단이 아니라 참고 추정임을 전제로,
+        '정보 없음'이나 '비교할 기록 부족'이면 크기나 성장 속도를 문제로 지어내지 말고,
+        과거보다 커졌다면 자라는 중으로 보고 센서 값 위주로 진단하세요. 문제가 없으면 없다고 답하세요.
+        확정 진단이 아니라 참고 추정임을 전제로,
         현장에서 바로 실행 가능한 구체적 조치 위주로 작성하세요.
         """,
                 speciesName, req.getDaysSincePlanted() != null ? req.getDaysSincePlanted() : 0,
                 req.getPlantStage() != null ? req.getPlantStage() : "미등록",
-                sizeChangeText, sizeText, speedText, diseaseText,
+                sizeChangeText, speedText, diseaseText,
                 temperature, tempRange, humidity, ph, phRange, tds, tdsRange, waterLevel, note);
 
         String system = "당신은 스마트팜 작물 진단 전문가입니다. 주어진 센서·성장 데이터로 성장 저해나 이상의 원인을 추정하고 "
@@ -187,8 +189,6 @@ public class AiAdviceService {
 
         String speciesName    = species != null ? species.getName() : (req.getSpeciesName() != null ? req.getSpeciesName() : "미등록 품종");
         String categoryText   = species != null ? categoryToKorean(species.getCategory()) : "정보 없음";
-        String matureText     = species != null ? species.getDaysToMature() + "일" : "정보 없음";
-
         String tempRange   = range(species != null ? species.getMinTemperature() : null, species != null ? species.getMaxTemperature() : null, "°C");
         String humidRange  = range(species != null ? species.getMinHumidity() : null, species != null ? species.getMaxHumidity() : null, "%");
         String phRange     = range(species != null ? species.getMinPh() : null, species != null ? species.getMaxPh() : null, "");
@@ -205,7 +205,6 @@ public class AiAdviceService {
         - 분류: %s
         - 재배 일수: %d일
         - 생육 단계: %s
-        - 평균 성숙 기간: %s
 
         %s(%s) 재배 기준:
         - 적정 온도: %s
@@ -233,18 +232,16 @@ public class AiAdviceService {
         [양액 시스템]
         pH, TDS, 수위 상태를 분석하고 필요한 조치를 설명하세요.
 
-        [성장 속도]
-        현재 생육 단계와 평균 성숙 기간을 기반으로 성장 상태를 평가하세요.
-
         규칙:
         - 각 항목은 1~2문장으로 작성
         - 불필요한 인사말 금지
         - 실제 스마트팜 운영자가 바로 적용 가능한 수준으로 설명
         - 수치가 적정 범위를 벗어나면 원인과 해결 방향 제시
         - "기준 미등록"인 항목은 해당 작물의 일반적인 재배 지식으로 보완해서 판단
+        - 성장 속도는 평가하지 않음. 포트마다 다르므로 포트별 정밀 분석에서 따로 다룬다
         """,
                 speciesName, categoryText, req.getDaysSincePlanted() != null ? req.getDaysSincePlanted() : 0,
-                req.getPlantStage() != null ? req.getPlantStage() : "미등록", matureText,
+                req.getPlantStage() != null ? req.getPlantStage() : "미등록",
                 speciesName, categoryText,
                 tempRange, humidRange, phRange, tdsRange, lightRange, note,
                 temperature, humidity, ph, tds, waterLevel

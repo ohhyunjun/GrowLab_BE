@@ -24,6 +24,7 @@ public class PortDiagnosisRequestDto {
     private Double  ownRatePerDay;        // 이 포트의 하루 성장률(%), null 가능
     private Double  referenceRatePerDay;  // 다른 재배들의 같은 시기 하루 성장률(%), null 가능
     private Integer referencePlantCount;  // 비교한 다른 재배 기록 수, null 가능
-    private Double  currentSizePercent;// 현재 크기(화면 대비 %), null 가능
+    // 화면 대비 크기. 포트가 찍히는 자리에 따라 달라지는 값이라 크다/작다의 근거가 못 되어 지시문에는 넣지 않는다.
+    private Double  currentSizePercent;
     private String  diseaseResult;     // 질병 라벨(있으면)
 }
