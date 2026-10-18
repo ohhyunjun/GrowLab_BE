@@ -29,6 +29,19 @@ import static org.mockito.Mockito.when;
 
 class SensorLogPredictionIntegrationTest {
 
+    @Test void lettuceSensorLogDoesNotCallLegacyInference() {
+        var logs=mock(SensorLogRepository.class);var devices=mock(DeviceRepository.class);
+        var client=mock(RestTemplate.class);var predictions=mock(PredictionService.class);
+        var service=new SensorLogService(logs,devices,client,predictions);
+        var species=new Species();species.setName("청상추");
+        var device=new Device("TEST","Test");var plant=new Plant();plant.setSpecies(species);device.getPlants().add(plant);
+        when(devices.findById("TEST")).thenReturn(Optional.of(device));
+        when(logs.save(any(SensorLog.class))).thenAnswer(i->i.getArgument(0));
+        var dto=new SensorLogRequestDto();ReflectionTestUtils.setField(dto,"serial_number","TEST");
+        service.createSensorLog(dto);
+        org.mockito.Mockito.verifyNoInteractions(client,predictions);
+    }
+
     @Test
     @SuppressWarnings("unchecked")
     void hourlySensorLogCallsInferenceWithSpeciesContractAndSavesResponse() {
@@ -47,7 +60,7 @@ class SensorLogPredictionIntegrationTest {
 
         Species species = new Species();
         species.setId(7L);
-        species.setName("청상추");
+        species.setName("딸기"); // Other crops retain the legacy sensor inference contract.
         species.setStageNames(List.of("씨앗", "정식기", "생육기", "수확기"));
         species.setStageDurationDays(List.of(0, 7, 20, 40));
 
@@ -100,7 +113,7 @@ class SensorLogPredictionIntegrationTest {
                 .containsEntry("serial_number", "GROWLAB-G111")
                 .containsEntry("current_stage", 1)
                 .containsEntry("species_id", 7L)
-                .containsEntry("species_name", "청상추")
+                .containsEntry("species_name", "딸기")
                 .containsEntry("total_stages", 4)
                 .containsEntry("temperature", 23.5f)
                 .containsEntry("humidity", 65.0f)

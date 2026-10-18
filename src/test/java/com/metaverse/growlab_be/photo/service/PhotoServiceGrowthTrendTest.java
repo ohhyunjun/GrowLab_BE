@@ -39,7 +39,8 @@ class PhotoServiceGrowthTrendTest {
         photoRepository = mock(PhotoRepository.class);
         deviceRepository = mock(DeviceRepository.class);
         plantRepository = mock(PlantRepository.class);
-        photoService = new PhotoService(photoRepository, deviceRepository, plantRepository);
+        photoService = new PhotoService(photoRepository, deviceRepository, plantRepository,
+                mock(com.metaverse.growlab_be.harvest.HarvestService.class), mock(com.metaverse.growlab_be.plant.service.PlantService.class));
         device = new Device(SERIAL, "테스트기기");
         when(deviceRepository.findById(SERIAL)).thenReturn(Optional.of(device));
     }
@@ -445,6 +446,21 @@ class PhotoServiceGrowthTrendTest {
         // 크기도 옮기기 전의 날과는 견주지 않는다: 옮긴 뒤 6일차 0.08 -> 7일차 0.09
         assertThat(trend.getSizeChange().getDays()).isEqualTo(1);
         assertThat(trend.getSizeChange().getChangePercent()).isEqualTo(12.5);
+    }
+
+    @Test
+    void edgePhotosUseCaptureTimeAndNeverAttachUnknownCultivationToCurrentPlant() {
+        Plant current = port(0, BASE); current.setId(22L);
+        givenPlants(current);
+        Photo delayed = photo(0, BASE.plusDays(8), 0.2);
+        delayed.bindCapture(22L, BASE.plusDays(2).atZone(java.time.ZoneId.of("Asia/Seoul")).toInstant(), "delayed");
+        Photo previous = photo(0, BASE.plusDays(9), 0.9);
+        previous.bindCapture(11L, BASE.plusDays(3).atZone(java.time.ZoneId.of("Asia/Seoul")).toInstant(), "previous");
+        givenPhotos(delayed, previous);
+        var trend = photoService.getGrowthTrend(SERIAL, 0);
+        assertThat(trend.getPoints()).hasSize(1);
+        assertThat(trend.getPoints().get(0).getElapsedDay()).isEqualTo(2L);
+        assertThat(trend.getPoints().get(0).getDate()).isEqualTo(BASE.plusDays(2).toLocalDate().toString());
     }
 
     private String health(GrowthTrendResponseDto trend, int portIndex) {

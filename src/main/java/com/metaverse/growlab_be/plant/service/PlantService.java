@@ -160,6 +160,14 @@ public class PlantService {
         }
     }
 
+    /** Called inside the locked photo-ingestion transaction, bound to its original cultivation. */
+    @Transactional
+    public void applyObservationForPlant(Plant plant, String growthResult, Double growthConfidence,
+                                         String diseaseResult, Double diseaseConfidence) {
+        if(!plant.isActive()) throw new IllegalStateException("종료된 재배입니다.");
+        updatePlantStageAndNotice(plant.getDevice(),plant,plant.getPortIndex(),growthResult,growthConfidence,diseaseResult,diseaseConfidence);
+    }
+
     private void updatePlantStageAndNotice(Device device, Plant plant, Integer portIndex,
                                            String growthResult, Double growthConfidence,
                                            String diseaseResult, Double diseaseConfidence) {

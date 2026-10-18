@@ -10,6 +10,8 @@ import java.util.Optional;
 
 @Repository
 public interface PhotoRepository extends JpaRepository<Photo, Long> {
+    java.util.Optional<Photo> findByDeviceIdAndObservationId(String serial, String observationId);
+    boolean existsByPlantIdAndCapturedAtAfter(Long plantId, java.time.Instant capturedAt);
     Optional<Photo> findTopByOrderByIdDesc();// JpaRepository<관리할 엔티티, 엔티티의 ID 타입>
 
     //디바이스별 사진 조회 (최신순)

@@ -10,6 +10,10 @@ public class PhotoRequestDto {
     private MultipartFile imageFile;
     private String serialNumber;
     private Integer portIndex;
+    private Long plantId;
+    private String capturedAt;
+    private String observationId;
+    private String harvestPredictionJson;
 
     private String growthResult;      // "sprout", "growth", "no_detection"
     private Double growthConfidence;

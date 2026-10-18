@@ -10,6 +10,10 @@ import java.util.Optional;
 
 public interface PlantRepository extends JpaRepository<Plant,Long> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM Plant p WHERE p.id = :id")
+    Optional<Plant> findLockedById(@Param("id") Long id);
+
     // Device를 통한 간접 사용자 조회
     @Query("SELECT p FROM Plant p WHERE p.device.user.id = :userId AND p.endedAt IS NULL ORDER BY p.plantedAt ASC")
     List<Plant> findByUserIdOrderByPlantedAtAsc(@Param("userId") Long userId);

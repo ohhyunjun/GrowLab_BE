@@ -124,6 +124,8 @@ public class SensorLogService {
 
         for (Plant plant : device.getActivePlants()) {
             Species species = plant.getSpecies();
+            // Lettuce harvest ETA is now computed on the device from photos, not this sensor call.
+            if (com.metaverse.growlab_be.harvest.HarvestCrop.supports(species)) continue;
             if (species == null) {
                 log.warn("[Prediction] 품종 정보 없음 - plantId: {}", plant.getId());
                 continue;

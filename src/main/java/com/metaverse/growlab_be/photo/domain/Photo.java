@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
+@Table(uniqueConstraints=@UniqueConstraint(name="uk_photo_observation",columnNames={"device_serial","observation_id"}),
+       indexes=@Index(name="idx_photo_plant_captured",columnList="plant_id,captured_at"))
 @Getter
 @NoArgsConstructor
 public class Photo extends TimeStamped {
@@ -61,6 +63,15 @@ public class Photo extends TimeStamped {
 
     @Column
     private Integer selectedBoxIndex; // detectionsJson 배열에서 대표로 고른 박스의 인덱스
+
+    private Long plantId;
+    private java.time.Instant capturedAt;
+    @Column(length=36)
+    private String observationId;
+
+    public void bindCapture(Long plantId, java.time.Instant capturedAt, String observationId) {
+        this.plantId=plantId; this.capturedAt=capturedAt; this.observationId=observationId;
+    }
 
     // 직접 선언 (크기/검출 없이 저장하던 기존 흐름 호환용 → 해당 필드는 null)
     public Photo(Device device, Integer portIndex, String filePath, String fileName,

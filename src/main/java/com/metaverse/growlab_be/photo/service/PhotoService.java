@@ -40,6 +40,8 @@ public class PhotoService {
     private final PhotoRepository  photoRepository;
     private final DeviceRepository deviceRepository;
     private final PlantRepository  plantRepository;
+    private final com.metaverse.growlab_be.harvest.HarvestService harvestService;
+    private final com.metaverse.growlab_be.plant.service.PlantService plantService;
 
     // 단계 반영과 같은 신뢰도 기준. 낮은 신뢰도의 박스는 크기 비교에 쓰지 않는다.
     private static final double MIN_GROWTH_CONFIDENCE = 0.70;
@@ -54,11 +56,29 @@ public class PhotoService {
             throw new IllegalArgumentException("이미지 파일이 필요합니다.");
         }
 
-        Device device = deviceRepository.findById(dto.getSerialNumber())
+        boolean edge=dto.getPlantId()!=null || dto.getObservationId()!=null || dto.getCapturedAt()!=null || dto.getHarvestPredictionJson()!=null;
+        Device device = (edge ? deviceRepository.findLockedById(dto.getSerialNumber()) : deviceRepository.findById(dto.getSerialNumber()))
                 .orElseThrow(() -> new IllegalArgumentException("등록되지 않은 기기입니다: " + dto.getSerialNumber()));
 
         if (dto.getPortIndex() == null) {
             throw new IllegalArgumentException("포트 번호(portIndex)가 누락되었습니다.");
+        }
+
+        Plant capturePlant=null;
+        java.time.Instant capturedAt=null;
+        com.metaverse.growlab_be.harvest.HarvestPayload harvest=null;
+        if (edge) {
+            try { capturedAt=java.time.Instant.parse(dto.getCapturedAt()); }
+            catch(Exception e) { throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST,"촬영 시각에 UTC 시간대가 필요합니다."); }
+            capturePlant=harvestService.validateCultivation(device,dto.getPortIndex(),dto.getPlantId(),capturedAt);
+            harvest=harvestService.parseAndValidate(dto.getHarvestPredictionJson(),dto.getObservationId(),capturedAt,capturePlant);
+            var previous=photoRepository.findByDeviceIdAndObservationId(device.getId(),dto.getObservationId());
+            if(previous.isPresent()) {
+                Photo p=previous.get();
+                if(!dto.getPlantId().equals(p.getPlantId()) || !capturedAt.equals(p.getCapturedAt()))
+                    throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,"재사용된 관측 ID입니다.");
+                return new PhotoResponseDto(p);
+            }
         }
 
         File directory = new File(uploadDir);
@@ -75,13 +95,28 @@ public class PhotoService {
         String  diseaseResult = dto.getDiseaseResult()     != null ? dto.getDiseaseResult()     : "no_detection";
         Double  diseaseConf   = dto.getDiseaseConfidence() != null ? dto.getDiseaseConfidence() : 0.0;
 
-        Photo savedPhoto = photoRepository.save(new Photo(
+        Photo photo = new Photo(
                 device, dto.getPortIndex(), filePath, fileName,
                 growthResult, growthConf,
                 diseaseResult, diseaseConf,
                 dto.getBoxWidth(), dto.getBoxHeight(), dto.getBoxArea(), dto.getBoxAreaRatio(),
                 dto.getDetectionsJson(), dto.getSelectedBoxIndex()
-        ));
+        );
+        if(edge) photo.bindCapture(dto.getPlantId(),capturedAt,dto.getObservationId());
+        Photo savedPhoto=photoRepository.save(photo);
+        if(edge) {
+            harvestService.save(capturePlant,savedPhoto.getId(),harvest);
+            // Growth confirmation for lettuce comes from the accumulated photo history, not a single frame.
+            String confirmedGrowth=growthResult;
+            Double confirmedConfidence=growthConf;
+            if(com.metaverse.growlab_be.harvest.HarvestCrop.supports(capturePlant.getSpecies())) {
+                confirmedGrowth=harvest.confirmedStage()>0?harvest.confirmedStage().toString():"no_detection";
+                // Internal confirmation flag; never exposed as an AI probability/forecast confidence.
+                confirmedConfidence=harvest.confirmedStage()>0?1.:0.;
+            }
+            if(!photoRepository.existsByPlantIdAndCapturedAtAfter(capturePlant.getId(),capturedAt))
+                plantService.applyObservationForPlant(capturePlant,confirmedGrowth,confirmedConfidence,diseaseResult,diseaseConf);
+        }
 
         return new PhotoResponseDto(savedPhoto);
     }
@@ -146,12 +181,13 @@ public class PhotoService {
             PlantExtent.Result extent = PlantExtent.of(p.getDetectionsJson());
             Plant owner = ownerOf(p, plantByPort, endedByPort);
             if (owner == null) continue;                            // 식물이 없던 때의 사진
-            LocalDate shot = p.getCreatedAt().toLocalDate();
+            LocalDate shot = shotAt(p).toLocalDate();
             long elapsed = ChronoUnit.DAYS.between(owner.getPlantedAt().toLocalDate(), shot);
+            if (elapsed < 0) continue;
             observed.computeIfAbsent(owner, k -> new ArrayList<>()).add(extent != null
-                    ? new PlantSeries.Observation(p.getCreatedAt(), elapsed, extent.areaRatio(), extent.cut(),
+                    ? new PlantSeries.Observation(shotAt(p), elapsed, extent.areaRatio(), extent.cut(),
                             extent.centerX(), extent.centerY())
-                    : new PlantSeries.Observation(p.getCreatedAt(), elapsed, p.getBoxAreaRatio(), false, null, null));
+                    : new PlantSeries.Observation(shotAt(p), elapsed, p.getBoxAreaRatio(), false, null, null));
             if (owner == selfPlant) selfDateByElapsed.putIfAbsent(elapsed, shot);
         }
 
@@ -210,8 +246,22 @@ public class PhotoService {
     }
 
     // 사진이 찍힌 시각에 그 포트에 있던 식물. 종료된 재배는 [파종, 종료) 구간으로, 재배 중인 식물은 파종일 이후로 판정한다.
+    private static LocalDateTime shotAt(Photo photo) {
+        return photo.getCapturedAt() == null ? photo.getCreatedAt()
+                : photo.getCapturedAt().atZone(java.time.ZoneId.of("Asia/Seoul")).toLocalDateTime();
+    }
+
     private Plant ownerOf(Photo photo, Map<Integer, Plant> plantByPort, Map<Integer, List<Plant>> endedByPort) {
-        LocalDateTime shotAt = photo.getCreatedAt();
+        if (photo.getPlantId() != null) {
+            Plant current = plantByPort.get(photo.getPortIndex());
+            if (current != null && photo.getPlantId().equals(current.getId())) return current;
+            for (Plant ended : endedByPort.getOrDefault(photo.getPortIndex(), List.of())) {
+                if (photo.getPlantId().equals(ended.getId())) return ended;
+            }
+            return null;
+        }
+
+        LocalDateTime shotAt = shotAt(photo);
         for (Plant ended : endedByPort.getOrDefault(photo.getPortIndex(), List.of())) {
             if (!shotAt.isBefore(ended.getPlantedAt()) && shotAt.isBefore(ended.getEndedAt())) return ended;
         }
