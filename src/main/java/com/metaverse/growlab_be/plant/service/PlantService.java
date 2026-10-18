@@ -98,6 +98,7 @@ public class PlantService {
         plant.update(plantRequestDto);
         syncSpeciesNickname(plant, plantRequestDto.getName());
         plant.setStageIndex(clampStageIndex(plant.getSpecies(), plantRequestDto.getStageIndex()));
+        publishPortState(plant.getDevice());
         return new PlantResponseDto(plant);
     }
 
@@ -111,6 +112,7 @@ public class PlantService {
         }
         if (plantRequestDto.getPlantedAt() != null) plant.setPlantedAt(plantRequestDto.getPlantedAt());
 
+        publishPortState(plant.getDevice());
         return new PlantResponseDto(plant);
     }
 
@@ -269,8 +271,16 @@ public class PlantService {
     }
 
     private void publishThresholdsForPlants(Device device) {
-        mqttPublisherProvider.ifAvailable(publisher -> publisher.publishThresholdsForPlants(
-                device.getId(), plantRepository.findByDeviceIdAndEndedAtIsNull(device.getId())));
+        mqttPublisherProvider.ifAvailable(publisher -> {
+            List<Plant> plants = plantRepository.findByDeviceIdAndEndedAtIsNull(device.getId());
+            publisher.publishThresholdsForPlants(device.getId(), plants);
+            publisher.publishPortState(device.getId(), device.getPortStatus(), plants);
+        });
+    }
+
+    private void publishPortState(Device device) {
+        mqttPublisherProvider.ifAvailable(publisher -> publisher.publishPortState(device.getId(),
+                device.getPortStatus(), plantRepository.findByDeviceIdAndEndedAtIsNull(device.getId())));
     }
 
     private Plant findPlantOwnedByUser(Long plantId, User user) {

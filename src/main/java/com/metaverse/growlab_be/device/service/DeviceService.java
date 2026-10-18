@@ -57,6 +57,7 @@ public class DeviceService {
                 try {
                     publisher.publishPhotoInterval(device.getId(), interval);
                     publisher.publishThresholdsForPlants(device.getId(), device.getActivePlants());
+                    publisher.publishPortState(device.getId(), device.getPortStatus(), device.getActivePlants());
                 } catch (RuntimeException e) {
                     log.warn("[MQTT] 시작 시 기기 설정 동기화 실패 - serial={}", device.getId(), e);
                 }
@@ -133,7 +134,9 @@ public class DeviceService {
         if (deviceRepository.existsById(serialNumber)) {
             throw new IllegalArgumentException("이미 존재하는 시리얼 번호입니다: " + serialNumber);
         }
-        deviceRepository.save(new Device(serialNumber, serialNumber));
+        Device device = deviceRepository.save(new Device(serialNumber, serialNumber));
+        mqttPublisherProvider.ifAvailable(publisher -> publisher.publishPortState(
+                serialNumber, device.getPortStatus(), device.getActivePlants()));
     }
 
     @Transactional
@@ -146,8 +149,10 @@ public class DeviceService {
         device.setPortStatus("00000000");
 
         // retained 메시지에 이전 품종 범위가 남지 않도록 제한 없음 값으로 초기화한다.
-        mqttPublisherProvider.ifAvailable(publisher ->
-                publisher.publishThresholds(serialNumber, null));
+        mqttPublisherProvider.ifAvailable(publisher -> {
+            publisher.publishThresholds(serialNumber, null);
+            publisher.publishPortState(serialNumber, device.getPortStatus(), List.of());
+        });
     }
 
     @Transactional
@@ -159,6 +164,10 @@ public class DeviceService {
         photoRepository.deleteByDevice(device);
         sensorLogRepository.deleteByDevice(device);
         deviceRepository.delete(device);
+        mqttPublisherProvider.ifAvailable(publisher -> {
+            publisher.publishThresholds(serialNumber, null);
+            publisher.publishPortState(serialNumber, "00000000", List.of());
+        });
     }
 
     @Transactional
@@ -208,6 +217,8 @@ public class DeviceService {
         char[] bits = device.getPortStatus().toCharArray();
         bits[portIndex] = status ? '1' : '0';
         device.setPortStatus(new String(bits));
+        mqttPublisherProvider.ifAvailable(publisher -> publisher.publishPortState(
+                serialNumber, device.getPortStatus(), device.getActivePlants()));
     }
 
     // 포트에 심은 식물의 품종으로 요약 정보를 만든다.
