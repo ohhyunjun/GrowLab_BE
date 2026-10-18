@@ -85,7 +85,6 @@ public class AiAdviceService {
 
         String speciesName = species != null ? species.getName()
                 : (req.getSpeciesName() != null ? req.getSpeciesName() : "미등록 품종");
-        String matureText  = species != null ? species.getDaysToMature() + "일" : "정보 없음";
         String tempRange   = range(species != null ? species.getMinTemperature() : null, species != null ? species.getMaxTemperature() : null, "°C");
         String phRange     = range(species != null ? species.getMinPh() : null, species != null ? species.getMaxPh() : null, "");
         String tdsRange    = range(species != null ? species.getMinTds() : null, species != null ? species.getMaxTds() : null, "ppm");
@@ -117,7 +116,6 @@ public class AiAdviceService {
         - 품종: %s
         - 재배 일수: %d일차
         - 생육 단계: %s
-        - 평균 성숙 기간: %s
 
         [사진 관측] 사진 속 검출 박스 넓이 기준의 참고값이며 실제 크기를 잰 것이 아닙니다.
         - 이 포트의 과거 대비 크기: %s
@@ -134,12 +132,13 @@ public class AiAdviceService {
         - 생육 특이사항: %s
 
         '감지된 문제', '가능한 원인', '권장 조치' 세 항목으로 나눠 각 1~3줄로 한국어로 답하세요.
+        수확일이나 수확까지 남은 일수는 추정하지 마세요. 수확기 도달일은 별도의 영상 예측 결과로 안내합니다.
         마크다운 기호(#, *, - 등)는 쓰지 마세요. '정보 없음'이나 '비교할 기록 부족'인 항목을 근거로
         성장이 느리다고 단정하지 마세요. 확정 진단이 아니라 참고 추정임을 전제로,
         현장에서 바로 실행 가능한 구체적 조치 위주로 작성하세요.
         """,
                 speciesName, req.getDaysSincePlanted() != null ? req.getDaysSincePlanted() : 0,
-                req.getPlantStage() != null ? req.getPlantStage() : "미등록", matureText,
+                req.getPlantStage() != null ? req.getPlantStage() : "미등록",
                 sizeChangeText, sizeText, speedText, diseaseText,
                 temperature, tempRange, humidity, ph, phRange, tds, tdsRange, waterLevel, note);
 
