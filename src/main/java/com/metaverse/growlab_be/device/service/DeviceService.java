@@ -9,6 +9,7 @@ import com.metaverse.growlab_be.notice.repository.NoticeRepository;
 import com.metaverse.growlab_be.photo.domain.Photo;
 import com.metaverse.growlab_be.photo.repository.PhotoRepository;
 import com.metaverse.growlab_be.sensor_log.repository.SensorLogRepository;
+import com.metaverse.growlab_be.sensor_log.service.SensorLogService;
 import com.metaverse.growlab_be.species.domain.Species;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.List;
 
@@ -35,6 +37,8 @@ public class DeviceService {
     private final NoticeRepository noticeRepository;
     private final DiaryRepository diaryRepository;
     private final ObjectProvider<MqttPublisher> mqttPublisherProvider;
+    private final SensorLogService sensorLogService;
+
     private static final int MAX_PHOTO_INTERVAL_HOURS = 6;
 
     // 시작 시 포트별 품종을 기준으로 retained thresholds를 다시 발행한다.
@@ -53,6 +57,7 @@ public class DeviceService {
                 try {
                     publisher.publishPhotoInterval(device.getId(), interval);
                     publisher.publishThresholdsForPlants(device.getId(), device.getActivePlants());
+                    publisher.publishPortState(device.getId(), device.getPortStatus(), device.getActivePlants());
                 } catch (RuntimeException e) {
                     log.warn("[MQTT] 시작 시 기기 설정 동기화 실패 - serial={}", device.getId(), e);
                 }
@@ -74,9 +79,28 @@ public class DeviceService {
                             .sorted(Comparator.comparingInt(DeviceResponseDto.PlantSummaryDto::getPortIndex))
                             .toList();
 
-                    return new DeviceResponseDto(device, lastPhotoAt, plantSummaries);
+                    return new DeviceResponseDto(device, lastPhotoAt, plantSummaries,
+                            currentLedStatus(device, LocalTime.now()));
                 })
                 .toList();
+    }
+
+    // 현재 LED 상태: 기기가 보고한 실제 값 > 자동 모드의 일정 계산 > 마지막 수동 명령.
+    Boolean currentLedStatus(Device device, LocalTime now) {
+        Boolean reported = sensorLogService.getReportedLedStatus(device.getId());
+        if (reported != null) return reported;
+        if (Boolean.TRUE.equals(device.getLedMode())
+                && device.getLedOnTime() != null && device.getLedOffTime() != null) {
+            return isWithinSchedule(device.getLedOnTime(), device.getLedOffTime(), now);
+        }
+        return device.getLedStatus();
+    }
+
+    // 기기(led_scheduler)와 같은 규칙: 시작=종료면 꺼짐, 자정을 넘는 일정도 처리한다.
+    private static boolean isWithinSchedule(LocalTime on, LocalTime off, LocalTime now) {
+        if (on.equals(off)) return false;
+        if (on.isBefore(off)) return !now.isBefore(on) && now.isBefore(off);
+        return !now.isBefore(on) || now.isBefore(off);
     }
 
     public List<AdminDeviceResponseDto> getAllDevicesForAdmin() {
@@ -117,6 +141,7 @@ public class DeviceService {
         Device device = deviceRepository.save(new Device(serialNumber, serialNumber));
         try {
             publisher.publishPhotoInterval(serialNumber, device.getPhotoInterval());
+            publisher.publishPortState(serialNumber, device.getPortStatus(), device.getActivePlants());
         } catch (RuntimeException e) {
             throw new IllegalStateException("MQTT 브로커에 새 기기의 촬영 주기를 보낼 수 없습니다.", e);
         }
@@ -132,8 +157,10 @@ public class DeviceService {
         device.setPortStatus("00000000");
 
         // retained 메시지에 이전 품종 범위가 남지 않도록 제한 없음 값으로 초기화한다.
-        mqttPublisherProvider.ifAvailable(publisher ->
-                publisher.publishThresholds(serialNumber, null));
+        mqttPublisherProvider.ifAvailable(publisher -> {
+            publisher.publishThresholds(serialNumber, null);
+            publisher.publishPortState(serialNumber, device.getPortStatus(), List.of());
+        });
     }
 
     @Transactional
@@ -145,6 +172,10 @@ public class DeviceService {
         photoRepository.deleteByDevice(device);
         sensorLogRepository.deleteByDevice(device);
         deviceRepository.delete(device);
+        mqttPublisherProvider.ifAvailable(publisher -> {
+            publisher.publishThresholds(serialNumber, null);
+            publisher.publishPortState(serialNumber, "00000000", List.of());
+        });
     }
 
     @Transactional
@@ -208,6 +239,8 @@ public class DeviceService {
         char[] bits = device.getPortStatus().toCharArray();
         bits[portIndex] = status ? '1' : '0';
         device.setPortStatus(new String(bits));
+        mqttPublisherProvider.ifAvailable(publisher -> publisher.publishPortState(
+                serialNumber, device.getPortStatus(), device.getActivePlants()));
     }
 
     // 포트에 심은 식물의 품종으로 요약 정보를 만든다.

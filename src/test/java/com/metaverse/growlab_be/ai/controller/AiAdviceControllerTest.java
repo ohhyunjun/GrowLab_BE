@@ -28,7 +28,9 @@ class AiAdviceControllerTest {
                         .content("""
                                 {"serialNumber":"GROWLAB-G111","speciesId":1,"speciesName":"상추",
                                  "portIndex":3,"daysSincePlanted":12,"plantStage":"발아",
-                                 "gapPercent":-15.5,"rank":4,"portCount":8,
+                                 "sizeChangeDays":7,"sizeChangePercent":-15.5,
+                                 "speedVerdict":"slower","ownRatePerDay":1.2,
+                                 "referenceRatePerDay":3.4,"referencePlantCount":4,
                                  "currentSizePercent":2.1,"diseaseResult":"질병 미검출"}
                                 """))
                 .andExpect(status().isOk())
@@ -37,6 +39,7 @@ class AiAdviceControllerTest {
         verify(service).getPortDiagnosis(argThat(req ->
                 "GROWLAB-G111".equals(req.getSerialNumber())
                         && req.getPortIndex() == 3
-                        && req.getGapPercent() == -15.5));
+                        && req.getSizeChangePercent() == -15.5
+                        && "slower".equals(req.getSpeedVerdict())));
     }
 }

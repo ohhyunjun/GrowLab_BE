@@ -82,6 +82,8 @@ public class SecurityConfig {
                         // 라즈베리파이 -> 서버 전송 (JWT 없이 시리얼 번호로만 인증)
                         .requestMatchers(HttpMethod.POST, "/api/sensor_logs/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/photos").permitAll()
+                        // The controller verifies a per-device X-Device-Key.
+                        .requestMatchers(HttpMethod.GET, "/api/device-edge/*/ports").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/notices/alert").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/device-selftests").permitAll()
 

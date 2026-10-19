@@ -98,6 +98,7 @@ public class PlantService {
         plant.update(plantRequestDto);
         syncSpeciesNickname(plant, plantRequestDto.getName());
         plant.setStageIndex(clampStageIndex(plant.getSpecies(), plantRequestDto.getStageIndex()));
+        publishPortState(plant.getDevice());
         return new PlantResponseDto(plant);
     }
 
@@ -111,6 +112,7 @@ public class PlantService {
         }
         if (plantRequestDto.getPlantedAt() != null) plant.setPlantedAt(plantRequestDto.getPlantedAt());
 
+        publishPortState(plant.getDevice());
         return new PlantResponseDto(plant);
     }
 
@@ -156,6 +158,14 @@ public class PlantService {
             updatePlantStageAndNotice(device, plant, portIndex,
                     growthResult, growthConfidence, diseaseResult, diseaseConfidence);
         }
+    }
+
+    /** Called inside the locked photo-ingestion transaction, bound to its original cultivation. */
+    @Transactional
+    public void applyObservationForPlant(Plant plant, String growthResult, Double growthConfidence,
+                                         String diseaseResult, Double diseaseConfidence) {
+        if(!plant.isActive()) throw new IllegalStateException("종료된 재배입니다.");
+        updatePlantStageAndNotice(plant.getDevice(),plant,plant.getPortIndex(),growthResult,growthConfidence,diseaseResult,diseaseConfidence);
     }
 
     private void updatePlantStageAndNotice(Device device, Plant plant, Integer portIndex,
@@ -269,8 +279,16 @@ public class PlantService {
     }
 
     private void publishThresholdsForPlants(Device device) {
-        mqttPublisherProvider.ifAvailable(publisher -> publisher.publishThresholdsForPlants(
-                device.getId(), plantRepository.findByDeviceIdAndEndedAtIsNull(device.getId())));
+        mqttPublisherProvider.ifAvailable(publisher -> {
+            List<Plant> plants = plantRepository.findByDeviceIdAndEndedAtIsNull(device.getId());
+            publisher.publishThresholdsForPlants(device.getId(), plants);
+            publisher.publishPortState(device.getId(), device.getPortStatus(), plants);
+        });
+    }
+
+    private void publishPortState(Device device) {
+        mqttPublisherProvider.ifAvailable(publisher -> publisher.publishPortState(device.getId(),
+                device.getPortStatus(), plantRepository.findByDeviceIdAndEndedAtIsNull(device.getId())));
     }
 
     private Plant findPlantOwnedByUser(Long plantId, User user) {

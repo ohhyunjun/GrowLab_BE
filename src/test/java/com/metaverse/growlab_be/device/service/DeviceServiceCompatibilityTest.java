@@ -7,6 +7,7 @@ import com.metaverse.growlab_be.device.repository.DeviceRepository;
 import com.metaverse.growlab_be.photo.repository.PhotoRepository;
 import com.metaverse.growlab_be.plant.domain.Plant;
 import com.metaverse.growlab_be.sensor_log.repository.SensorLogRepository;
+import com.metaverse.growlab_be.sensor_log.service.SensorLogService;
 import com.metaverse.growlab_be.notice.repository.NoticeRepository;
 import com.metaverse.growlab_be.diary.repository.DiaryRepository;
 import org.junit.jupiter.api.Test;
@@ -31,7 +32,8 @@ class DeviceServiceCompatibilityTest {
     private final DiaryRepository diaries = mock(DiaryRepository.class);
     @SuppressWarnings("unchecked")
     private final ObjectProvider<MqttPublisher> publishers = mock(ObjectProvider.class);
-    private final DeviceService service = new DeviceService(devices, photos, sensors, notices, diaries, publishers);
+    private final DeviceService service = new DeviceService(devices, photos, sensors, notices, diaries, publishers,
+            mock(SensorLogService.class));
 
     @Test
     void userDeviceSummaryIncludesTheObservedDisease() {
