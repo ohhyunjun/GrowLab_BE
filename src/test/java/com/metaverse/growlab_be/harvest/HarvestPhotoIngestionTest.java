@@ -21,7 +21,9 @@ class HarvestPhotoIngestionTest {
     @Test void storesPythonResultAndPhotoInOneIngestion() throws Exception {
         var photos=mock(PhotoRepository.class);var devices=mock(DeviceRepository.class);var plants=mock(PlantRepository.class);
         var predictions=mock(HarvestPredictionRepository.class);
-        var harvest=new HarvestService(predictions,plants,devices);var observations=mock(PlantService.class);
+        var inference=mock(HarvestInferenceClient.class);
+        when(inference.predict(any())).thenAnswer(invocation->invocation.getArgument(0));
+        var harvest=new HarvestService(predictions,plants,devices,inference);var observations=mock(PlantService.class);
         var service=new PhotoService(photos,devices,plants,harvest,observations);
         var device=new Device("TEST","Test");device.setPortStatus("10000000");
         var species=new com.metaverse.growlab_be.species.domain.Species();species.setName("상추");
@@ -35,6 +37,7 @@ class HarvestPhotoIngestionTest {
         org.springframework.test.util.ReflectionTestUtils.setField(service,"uploadDir",photoDirectory.toString());
         when(photos.save(any())).thenAnswer(i->{Photo p=i.getArgument(0);org.springframework.test.util.ReflectionTestUtils.setField(p,"id",5L);return p;});
         var result=service.savePhoto(dto);
+        verify(inference).predict(any());
         try (var saved=java.nio.file.Files.list(photoDirectory)) { assertThat(saved.count()).isEqualTo(1); }
         assertThat(result.getPlantId()).isEqualTo(1L);assertThat(result.getCapturedAt()).isEqualTo(payload.capturedAt());
         var captor=org.mockito.ArgumentCaptor.forClass(HarvestPrediction.class);verify(predictions).save(captor.capture());

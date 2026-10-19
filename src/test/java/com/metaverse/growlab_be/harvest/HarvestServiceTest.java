@@ -19,7 +19,8 @@ class HarvestServiceTest {
     HarvestPredictionRepository predictions=mock(HarvestPredictionRepository.class);
     PlantRepository plants=mock(PlantRepository.class);
     DeviceRepository devices=mock(DeviceRepository.class);
-    HarvestService service=new HarvestService(predictions,plants,devices);
+    HarvestInferenceClient inference=mock(HarvestInferenceClient.class);
+    HarvestService service=new HarvestService(predictions,plants,devices,inference);
     ObjectMapper json=new ObjectMapper().findAndRegisterModules();
     Device device;Plant plant;
     final Instant time=Instant.parse("2026-10-01T00:00:00Z");
@@ -49,6 +50,15 @@ class HarvestServiceTest {
         String fixture=new String(getClass().getResourceAsStream("/edge_harvest_fixture.json").readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);
         HarvestPayload p=json.readValue(fixture,HarvestPayload.class);
         assertThat(service.parseAndValidate(fixture,p.observationId(),p.capturedAt(),plant).features()).hasSize(275);
+    }
+    @Test void featureOnlyPayloadGetsItsDateFromEc2() throws Exception {
+        var raw=valid();raw.put("status","FEATURES_READY");raw.put("remainingDays",null);raw.put("expectedAt",null);
+        HarvestPayload features=parse(raw);
+        var predicted=valid();
+        HarvestPayload expected=parse(predicted);
+        when(inference.predict(features)).thenReturn(expected);
+        assertThat(service.predictOnEc2(features)).isSameAs(expected);
+        verify(inference).predict(features);
     }
     @Test void rejectsWrongWidthDateVersionAndMissingFlag() throws Exception {
         var p=valid();p.put("features",List.of(1.,2.));assertThatThrownBy(()->parse(p)).isInstanceOf(ResponseStatusException.class);

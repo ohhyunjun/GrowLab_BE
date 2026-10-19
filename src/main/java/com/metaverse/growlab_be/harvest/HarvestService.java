@@ -23,6 +23,7 @@ public class HarvestService {
     private final HarvestPredictionRepository repository;
     private final PlantRepository plants;
     private final DeviceRepository devices;
+    private final HarvestInferenceClient inferenceClient;
     private static final ObjectMapper JSON=new ObjectMapper().findAndRegisterModules();
 
     public Plant validateCultivation(Device device, Integer port, Long plantId, Instant capturedAt) {
@@ -46,7 +47,7 @@ public class HarvestService {
         if (p==null || !Integer.valueOf(1).equals(p.schemaVersion()) || !observationId.equals(p.observationId())
                 || !capturedAt.equals(p.capturedAt()) || !capturedAt.equals(p.predictedAt())
                 || !MODEL.equals(p.modelVersion()) || !FEATURES.equals(p.featureVersion())) bad("예측 버전 또는 촬영 시각 불일치입니다.");
-        Set<String> statuses=Set.of("PREDICTED","HARVEST_READY","WAITING_ANCHOR","NO_DETECTION","UNSUPPORTED_CROP");
+        Set<String> statuses=Set.of("FEATURES_READY","PREDICTED","HARVEST_READY","WAITING_ANCHOR","NO_DETECTION","UNSUPPORTED_CROP");
         if (p.status()==null || !statuses.contains(p.status())) bad("알 수 없는 예측 상태입니다.");
         boolean supported=HarvestCrop.supports(plant.getSpecies());
         if (supported=="UNSUPPORTED_CROP".equals(p.status())) bad("품종과 예측 모델이 일치하지 않습니다.");
@@ -56,20 +57,35 @@ public class HarvestService {
         if (p.anchor()!=null && (!Set.of("growing","planting").contains(p.anchor()) || p.anchorAt()==null
                 || p.anchorAt().isAfter(capturedAt))) bad("잘못된 관측 기준일입니다.");
         if (p.anchor()==null && p.anchorAt()!=null) bad("관측 기준 종류가 없습니다.");
-        if ("PREDICTED".equals(p.status())) {
+        if ("FEATURES_READY".equals(p.status()) || "PREDICTED".equals(p.status())) {
+            if (p.anchor()==null) bad("관측 기준일이 없습니다.");
+            validateFeatures(p);
+        }
+        if ("FEATURES_READY".equals(p.status())) {
+            if (p.remainingDays()!=null || p.expectedAt()!=null) bad("기기에서 예측 날짜를 보낼 수 없습니다.");
+        } else if ("PREDICTED".equals(p.status())) {
             if (p.anchor()==null || p.remainingDays()==null || !Double.isFinite(p.remainingDays()) || p.remainingDays()<0
                     || p.expectedAt()==null) bad("잔여일 또는 예상일이 없습니다.");
             double seconds=Duration.between(p.predictedAt(),p.expectedAt()).toMillis()/1000.;
             if (Math.abs(seconds-p.remainingDays()*86400)>1) bad("잔여일과 예상일이 다릅니다.");
-            List<Double> f=p.features();
-            if (f==null || f.size()!=275 || f.stream().anyMatch(v->v==null || !Double.isFinite(v))
-                    || f.get(274)!=0. || f.get(8)<0 || f.get(8)>6
-                    || Math.abs(f.get(0)-Duration.between(p.anchorAt(),p.predictedAt()).toMillis()/86400000.)>1e-6) bad("잘못된 275차원 입력입니다.");
         } else if ("HARVEST_READY".equals(p.status())) {
             if (p.remainingDays()==null || p.remainingDays()!=0. || p.expectedAt()==null || p.expectedAt().isAfter(capturedAt)) bad("수확기 확인 정보가 잘못되었습니다.");
             if(p.features()!=null) bad("확인 상태에는 예측 입력을 넣지 않습니다.");
         } else if(p.expectedAt()!=null || p.remainingDays()!=null || p.features()!=null) bad("예측 전 상태에 예상일을 넣을 수 없습니다.");
         return p;
+    }
+
+    private void validateFeatures(HarvestPayload p) {
+        List<Double> f=p.features();
+        if (f==null || f.size()!=275 || f.stream().anyMatch(v->v==null || !Double.isFinite(v))
+                || f.get(274)!=0. || f.get(0)<0 || f.get(8)<0 || f.get(8)>6
+                || Math.abs(f.get(0)-Duration.between(p.anchorAt(),p.predictedAt()).toMillis()/86400000.)>1e-6)
+            bad("잘못된 275차원 입력입니다.");
+    }
+
+    public HarvestPayload predictOnEc2(HarvestPayload input) {
+        return "FEATURES_READY".equals(input.status()) || "PREDICTED".equals(input.status())
+                ? inferenceClient.predict(input) : input;
     }
 
     public void save(Plant plant, Long photoId, HarvestPayload p) {

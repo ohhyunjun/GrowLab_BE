@@ -79,6 +79,8 @@ public class PhotoService {
                     throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,"재사용된 관측 ID입니다.");
                 return new PhotoResponseDto(p);
             }
+            // The device supplies image features; EC2 returns the authoritative harvest date.
+            harvest=harvestService.predictOnEc2(harvest);
         }
 
         File directory = new File(uploadDir);
