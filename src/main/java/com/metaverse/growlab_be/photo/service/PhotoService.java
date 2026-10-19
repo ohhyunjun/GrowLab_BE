@@ -277,7 +277,7 @@ public class PhotoService {
             if (!shotAt.isBefore(ended.getPlantedAt()) && shotAt.isBefore(ended.getEndedAt())) return ended;
         }
         Plant active = plantByPort.get(photo.getPortIndex());
-        if (active == null || shotAt.toLocalDate().isBefore(active.getPlantedAt().toLocalDate())) return null;
+        if (active == null || shotAt.isBefore(active.getPlantedAt())) return null;
         return active;
     }
 

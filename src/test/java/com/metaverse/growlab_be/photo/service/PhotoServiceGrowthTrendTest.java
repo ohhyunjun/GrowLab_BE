@@ -393,6 +393,20 @@ class PhotoServiceGrowthTrendTest {
     }
 
     @Test
+    void 이전_재배_기록이_없어도_같은_날_파종시각_전_사진은_새_식물에_붙이지_않는다() {
+        LocalDateTime plantedAt = BASE.plusDays(10).withHour(13);
+        givenPlants(port(1, plantedAt));
+        givenPhotos(photo(1, plantedAt.minusHours(2), 0.90),
+                photo(1, plantedAt.plusDays(1), 0.02));
+
+        GrowthTrendResponseDto trend = photoService.getGrowthTrend(SERIAL, 1);
+
+        assertThat(trend.getPoints()).hasSize(1);
+        assertThat(trend.getPoints().get(0).getElapsedDay()).isEqualTo(1L);
+        assertThat(trend.getLatestRatio()).isEqualTo(0.02);
+    }
+
+    @Test
     void 사진이_한_장뿐인_날이_있어도_찍힌_시각으로_비교해_성장률이_치우치지_않는다() {
         givenPlants(port(1, BASE));
         List<Photo> photos = new ArrayList<>();
