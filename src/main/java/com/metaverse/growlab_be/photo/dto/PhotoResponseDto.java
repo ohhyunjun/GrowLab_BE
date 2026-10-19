@@ -32,6 +32,9 @@ public class PhotoResponseDto {
     // 검출된 전체 박스 원본(JSON)과 대표 박스 인덱스.
     private final String detectionsJson;
     private final Integer selectedBoxIndex;
+    private final Long plantId;
+    private final java.time.Instant capturedAt;
+    private final String observationId;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
     private final LocalDateTime createdAt;
@@ -54,5 +57,8 @@ public class PhotoResponseDto {
         this.boxAreaRatio = photo.getBoxAreaRatio();
         this.detectionsJson = photo.getDetectionsJson();
         this.selectedBoxIndex = photo.getSelectedBoxIndex();
+        this.plantId=photo.getPlantId();
+        this.capturedAt=photo.getCapturedAt();
+        this.observationId=photo.getObservationId();
     }
 }

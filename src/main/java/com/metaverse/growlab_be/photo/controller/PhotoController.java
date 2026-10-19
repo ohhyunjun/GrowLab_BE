@@ -21,17 +21,25 @@ public class PhotoController {
 
     private final PhotoService photoService;
     private final PlantService plantService;
+    private final com.metaverse.growlab_be.harvest.DeviceEdgeAuth edgeAuth;
 
     @PostMapping("/photos")
     public ResponseEntity<PhotoResponseDto> uploadPhoto(
-            @ModelAttribute PhotoRequestDto requestDto) throws IOException {
+            @ModelAttribute PhotoRequestDto requestDto,
+            @RequestHeader(value="X-Device-Key",required=false) String deviceKey) throws IOException {
+
+        boolean edge=requestDto.getPlantId()!=null || requestDto.getCapturedAt()!=null || requestDto.getObservationId()!=null || requestDto.getHarvestPredictionJson()!=null;
+        if(edge || edgeAuth.isConfigured(requestDto.getSerialNumber())) {
+            edgeAuth.verify(requestDto.getSerialNumber(),deviceKey);
+            if(!edge) throw new org.springframework.web.server.ResponseStatusException(HttpStatus.BAD_REQUEST,"기기 등록 후에는 재배 ID와 촬영 시각을 함께 보내야 합니다.");
+        }
 
         // 서비스 호출
         PhotoResponseDto responseDto = photoService.savePhoto(requestDto);
 
         // 분석 결과를 식물 상태에 반영
         try {
-            plantService.applyObservation(
+            if(!edge) plantService.applyObservation(
                     responseDto.getDeviceSerialNumber(), requestDto.getPortIndex(),
                     responseDto.getGrowthResult(), responseDto.getConfidence(),
                     responseDto.getDiseaseResult(), responseDto.getDiseaseConfidence());
