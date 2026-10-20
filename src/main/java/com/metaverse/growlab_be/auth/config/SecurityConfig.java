@@ -3,6 +3,7 @@ package com.metaverse.growlab_be.auth.config;
 import com.metaverse.growlab_be.auth.filter.JwtAuthenticationFilter;
 import com.metaverse.growlab_be.auth.handler.CustomAccessDeniedHandler;
 import com.metaverse.growlab_be.auth.handler.CustomAuthenticationEntryPoint;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -57,6 +58,9 @@ public class SecurityConfig {
                 )
                 // 인가(Authorization) 부분으로 엔드포인트 접근 권한을 설정하는 부분
                 .authorizeHttpRequests((authorize) -> authorize
+
+                        // Preserve the original HTTP status when Spring dispatches an error to /error.
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
 
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
