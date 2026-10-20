@@ -63,4 +63,29 @@ class PlantExtentTest {
         assertThat(PlantExtent.of("not json")).isNull();
         assertThat(PlantExtent.of("[{\"cls\":\"Planting\",\"conf\":0.9}]")).isNull();
     }
+
+    @Test
+    void 광각_사진은_옆_포트의_더_높은_신뢰도보다_중앙_포트의_식물을_고른다() {
+        PlantExtent.Result target = PlantExtent.of("""
+                [{"conf":0.98,"x":0.87,"y":0.40,"w":0.18,"h":0.20},
+                 {"conf":0.73,"x":0.39,"y":0.47,"w":0.10,"h":0.25}]""", true);
+        assertThat(target).isNotNull();
+        assertThat(target.centerX()).isCloseTo(0.39, within(0.001));
+        assertThat(target.areaRatio()).isCloseTo(0.025, within(0.001));
+        assertThat(target.confidence()).isEqualTo(0.73);
+    }
+
+    @Test
+    void 광각_사진에서_옆_포트만_검출되면_이_포트의_성장량을_만들지_않는다() {
+        assertThat(PlantExtent.of("""
+                [{"conf":0.99,"x":0.86,"y":0.45,"w":0.16,"h":0.20}]""", true)).isNull();
+    }
+
+    @Test
+    void 광각_사진의_위쪽_잎이_화면_경계에_거의_닿으면_잘린_최소_크기로_본다() {
+        PlantExtent.Result extent = PlantExtent.of("""
+                [{"conf":0.9658,"x":0.51623,"y":0.44151,"w":0.92668,"h":0.86218}]""", true);
+        assertThat(extent.cut()).isTrue();
+        assertThat(extent.areaRatio()).isCloseTo(.79897, within(.0001));
+    }
 }

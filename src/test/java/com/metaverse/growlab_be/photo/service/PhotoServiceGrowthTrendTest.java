@@ -10,6 +10,7 @@ import com.metaverse.growlab_be.plant.repository.PlantRepository;
 import com.metaverse.growlab_be.species.domain.Species;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -152,7 +153,53 @@ class PhotoServiceGrowthTrendTest {
     }
 
     @Test
-    void 화면_밖으로_잘린_식물_사진은_성장_측정에서_뺀다() {
+    void 광각_사진에서_옆_포트_식물이_더_확실해도_촬영_포트_박스를_쓴다() {
+        ReflectionTestUtils.setField(photoService, "cameraChangeSerial", SERIAL);
+        ReflectionTestUtils.setField(photoService, "cameraChangeAt", "2026-10-19T18:00:00");
+        LocalDateTime planted = LocalDateTime.of(2026, 10, 19, 9, 0);
+        givenPlants(port(1, planted));
+        givenPhotos(photoWithDetections(1, planted.plusDays(1), .036, """
+                [{"conf":0.98,"x":0.87,"y":0.40,"w":0.18,"h":0.20},
+                 {"conf":0.73,"x":0.39,"y":0.47,"w":0.10,"h":0.25}]"""));
+
+        GrowthTrendResponseDto trend = photoService.getGrowthTrend(SERIAL, 1);
+        assertThat(trend.getLatestRatio()).isEqualTo(.025);
+    }
+
+    @Test
+    void 광각_사진에_옆_포트_식물만_있으면_성장_관측을_남기지_않는다() {
+        ReflectionTestUtils.setField(photoService, "cameraChangeSerial", SERIAL);
+        ReflectionTestUtils.setField(photoService, "cameraChangeAt", "2026-10-19T18:00:00");
+        LocalDateTime planted = LocalDateTime.of(2026, 10, 19, 9, 0);
+        givenPlants(port(1, planted));
+        givenPhotos(photoWithDetections(1, planted.plusDays(1), .036, """
+                [{"conf":0.98,"x":0.87,"y":0.40,"w":0.18,"h":0.20}]"""));
+
+        GrowthTrendResponseDto trend = photoService.getGrowthTrend(SERIAL, 1);
+        assertThat(trend.getPoints()).isEmpty();
+        assertThat(trend.getLatestRatio()).isNull();
+    }
+
+    @Test
+    void 광각_사진의_중앙_새싹은_신뢰도_0점6대도_쓰고_0점3대는_제외한다() {
+        ReflectionTestUtils.setField(photoService, "cameraChangeSerial", SERIAL);
+        ReflectionTestUtils.setField(photoService, "cameraChangeAt", "2026-10-19T18:00:00");
+        LocalDateTime planted = LocalDateTime.of(2026, 10, 19, 9, 0);
+        givenPlants(port(4, planted));
+        givenPhotos(photoWithDetections(4, planted.plusDays(1), .03037, .6475, """
+                [{"conf":0.6475,"x":0.60216,"y":0.61458,"w":0.26322,"h":0.11538},
+                 {"conf":0.4006,"x":0.6863,"y":0.61058,"w":0.09195,"h":0.07572},
+                 {"conf":0.3784,"x":0.59796,"y":0.63061,"w":0.03816,"h":0.08654}]"""),
+                photoWithDetections(4, planted.plusDays(2), .0039, .3596, """
+                [{"conf":0.3596,"x":0.80349,"y":0.40705,"w":0.05048,"h":0.07732}]"""));
+
+        GrowthTrendResponseDto trend = photoService.getGrowthTrend(SERIAL, 4);
+        assertThat(trend.getPoints()).hasSize(1);
+        assertThat(trend.getLatestRatio()).isEqualTo(.0308);
+    }
+
+    @Test
+    void 화면_끝에_닿은_사진도_최소_크기로_남긴다() {
         givenPlants(port(1, BASE));
         givenPhotos(photoWithDetections(1, BASE.plusDays(4), 0.04, """
                 [{"cls":"Planting","conf":0.92,"x":0.44,"y":0.87,"w":0.16,"h":0.26}]"""),
@@ -161,9 +208,64 @@ class PhotoServiceGrowthTrendTest {
 
         GrowthTrendResponseDto trend = photoService.getGrowthTrend(SERIAL, 1);
 
-        assertThat(trend.getPoints()).hasSize(1);
-        assertThat(trend.getPoints().get(0).getElapsedDay()).isEqualTo(5L);
+        assertThat(trend.getPoints()).hasSize(2);
+        assertThat(trend.getPoints().get(0).getElapsedDay()).isEqualTo(4L);
+        assertThat(trend.getPoints().get(0).isLowerBound()).isTrue();
         assertThat(trend.getLatestRatio()).isEqualTo(0.09);
+        assertThat(trend.getSizeChange().isReady()).isFalse();
+    }
+
+    @Test
+    void 잘린_최근_사진은_확인된_증가율을_최소값으로_표시한다() {
+        givenPlants(port(1, BASE));
+        givenPhotos(photoWithDetections(1, BASE.plusDays(4), 0.64, """
+                        [{"cls":"Growing","conf":0.93,"x":0.5,"y":0.5,"w":0.8,"h":0.8}]"""),
+                photoWithDetections(1, BASE.plusDays(5).withHour(9), 0.6724, """
+                        [{"cls":"Growing","conf":0.93,"x":0.5,"y":0.5,"w":0.82,"h":0.82}]"""),
+                photoWithDetections(1, BASE.plusDays(5).withHour(17), 0.81, """
+                        [{"cls":"Growing","conf":0.93,"x":0.5,"y":0.45,"w":0.9,"h":0.9}]"""));
+
+        GrowthTrendResponseDto trend = photoService.getGrowthTrend(SERIAL, 1);
+
+        assertThat(trend.getPoints()).hasSize(2);
+        assertThat(trend.getLatestRatio()).isEqualTo(0.7412);
+        assertThat(trend.isLatestLowerBound()).isTrue();
+        assertThat(trend.getSizeChange().isReady()).isTrue();
+        assertThat(trend.getSizeChange().isLowerBound()).isTrue();
+        assertThat(trend.getSizeChange().getChangePercent()).isEqualTo(15.8);
+    }
+
+    @Test
+    void 녹색_측정이_두_날에_있으면_통합_크기를_쓴다() {
+        givenPlants(port(1, BASE));
+        givenPhotos(photoWithGreen(1, BASE.plusDays(4), .20, .05),
+                photoWithGreen(1, BASE.plusDays(5), .30, .10));
+
+        GrowthTrendResponseDto trend = photoService.getGrowthTrend(SERIAL, 1);
+
+        assertThat(trend.getMeasurement()).isEqualTo("box_green");
+        assertThat(trend.getLatestRatio()).isEqualTo(Math.round(VisualSizeIndex.combine(.30, .10) * 10000) / 10000.0);
+        assertThat(trend.getLatestBoxRatio()).isEqualTo(.30);
+        assertThat(trend.getLatestGreenRatio()).isEqualTo(.10);
+    }
+
+    @Test
+    void 통합_속도를_박스만_있는_다른_재배의_속도와_섞지_않는다() {
+        givenPlants(port(0, BASE), port(1, BASE), port(2, BASE), port(3, BASE));
+        List<Photo> photos = new ArrayList<>();
+        for (int day = 3; day <= 6; day++) {
+            photos.add(photoWithGreen(0, BASE.plusDays(day), .10 * Math.pow(1.10, day - 3),
+                    .04 * Math.pow(1.10, day - 3)));
+            for (int port = 1; port <= 3; port++)
+                photos.add(photo(port, BASE.plusDays(day), .10 * Math.pow(1.10, day - 3)));
+        }
+        givenPhotos(photos.toArray(Photo[]::new));
+
+        GrowthTrendResponseDto trend = photoService.getGrowthTrend(SERIAL, 0);
+
+        assertThat(trend.getMeasurement()).isEqualTo("box_green");
+        assertThat(trend.getGrowthRate().getRatePerDay()).isEqualTo(10.0);
+        assertThat(trend.getReference().isReady()).isFalse();
     }
 
     @Test
@@ -208,6 +310,7 @@ class PhotoServiceGrowthTrendTest {
         assertThat(trend.getGrowthRate().getRatePerDay()).isEqualTo(10.0);
         assertThat(trend.getGrowthRate().getObservationDays()).isEqualTo(5);
         assertThat(trend.getGrowthRate().getSpanDays()).isEqualTo(4);
+        assertThat(trend.getSizeChange().isReady()).isTrue();
         assertThat(trend.getReference().isReady()).isFalse();
         assertThat(health(trend, 1)).isEqualTo("pending");
     }
@@ -318,6 +421,89 @@ class PhotoServiceGrowthTrendTest {
         assertThat(trend.getReference().getVerdict()).isEqualTo("slower");
         assertThat(health(trend, 0)).isEqualTo("warn");
         assertThat(health(trend, 3)).isEqualTo("good");
+    }
+
+    @Test
+    void 과거_7번_한포트도_늦게_심은_포트의_같은_일차_참고_기준이_된다() {
+        givenPlants(port(6, BASE), port(1, BASE.plusDays(20)));
+        List<Photo> photos = new ArrayList<>();
+        for (int day = 6; day <= 8; day++) {
+            photos.add(photo(6, BASE.plusDays(day), .05 * Math.pow(1.15, day - 6)));
+            photos.add(photo(1, BASE.plusDays(20 + day), .02 * Math.pow(1.05, day - 6)));
+        }
+        givenPhotos(photos.toArray(Photo[]::new));
+
+        GrowthTrendResponseDto trend = photoService.getGrowthTrend(SERIAL, 1);
+
+        assertThat(trend.getReference().isReady()).isTrue();
+        assertThat(trend.getReference().getPlantCount()).isEqualTo(1);
+        assertThat(trend.getReference().getPortIndices()).containsExactly(6);
+        assertThat(trend.getReference().getVerdict()).isEqualTo("slower");
+        assertThat(health(trend, 1)).isEqualTo("warn"); // 속도 문제가 보이면 다른 지표가 대기여도 주의다.
+    }
+
+    @Test
+    void 한_비교_포트로도_크기와_속도가_모두_정상이면_초록이다() {
+        givenPlants(port(0, BASE), port(1, BASE.plusDays(10)));
+        List<Photo> photos = new ArrayList<>();
+        for (int day = 3; day <= 5; day++) {
+            photos.add(photo(0, BASE.plusDays(day), .05 * Math.pow(1.10, day - 3)));
+            photos.add(photo(1, BASE.plusDays(10 + day), .08 * Math.pow(1.10, day - 3)));
+        }
+        givenPhotos(photos.toArray(Photo[]::new));
+
+        GrowthTrendResponseDto trend = photoService.getGrowthTrend(SERIAL, 1);
+
+        assertThat(trend.getReference().getPlantCount()).isEqualTo(1);
+        assertThat(trend.getReference().getVerdict()).isEqualTo("similar");
+        assertThat(health(trend, 0)).isEqualTo("good");
+        assertThat(health(trend, 1)).isEqualTo("good");
+    }
+
+    @Test
+    void 속도가_비슷해도_자신의_크기가_뚜렷이_줄면_주황이다() {
+        givenPlants(port(0, BASE), port(1, BASE));
+        List<Photo> photos = new ArrayList<>();
+        for (int day = 3; day <= 5; day++) {
+            photos.add(photo(0, BASE.plusDays(day), .08 * Math.pow(.90, day - 3)));
+            photos.add(photo(1, BASE.plusDays(day), .12 * Math.pow(.90, day - 3)));
+        }
+        givenPhotos(photos.toArray(Photo[]::new));
+
+        GrowthTrendResponseDto trend = photoService.getGrowthTrend(SERIAL, 1);
+
+        assertThat(trend.getReference().getVerdict()).isEqualTo("similar");
+        assertThat(trend.getSizeChange().getChangePercent()).isLessThan(-3.0);
+        assertThat(health(trend, 1)).isEqualTo("warn");
+    }
+
+    @Test
+    void 크기_감소만_확인돼도_속도_비교가_대기면_주황이다() {
+        givenPlants(port(1, BASE));
+        givenPhotos(photo(1, BASE.plusDays(3), .10), photo(1, BASE.plusDays(4), .08));
+
+        GrowthTrendResponseDto trend = photoService.getGrowthTrend(SERIAL, 1);
+
+        assertThat(trend.getSizeChange().isReady()).isTrue();
+        assertThat(trend.getReference().isReady()).isFalse();
+        assertThat(health(trend, 1)).isEqualTo("warn");
+    }
+
+    @Test
+    void 같은_포트의_이전_재배는_다른_포트_속도_비교에_넣지_않는다() {
+        givenPlants(port(1, BASE.plusDays(20)));
+        givenEndedPlants(endedPort(1, BASE, BASE.plusDays(15)));
+        List<Photo> photos = new ArrayList<>();
+        for (int day = 6; day <= 8; day++) {
+            photos.add(photo(1, BASE.plusDays(day), .05 * Math.pow(1.15, day - 6)));
+            photos.add(photo(1, BASE.plusDays(20 + day), .02 * Math.pow(1.05, day - 6)));
+        }
+        givenPhotos(photos.toArray(Photo[]::new));
+
+        GrowthTrendResponseDto trend = photoService.getGrowthTrend(SERIAL, 1);
+
+        assertThat(trend.getGrowthRate().getStatus()).isEqualTo("growing");
+        assertThat(trend.getReference().isReady()).isFalse();
     }
 
     @Test
@@ -515,9 +701,22 @@ class PhotoServiceGrowthTrendTest {
 
     private Photo photoWithDetections(int portIndex, LocalDateTime shotAt, double largestBoxRatio,
                                       String detectionsJson) {
+        return photoWithDetections(portIndex, shotAt, largestBoxRatio, .9, detectionsJson);
+    }
+
+    private Photo photoWithDetections(int portIndex, LocalDateTime shotAt, double largestBoxRatio,
+                                      double confidence, String detectionsJson) {
+        Photo photo = spy(new Photo(device, portIndex, "/p.jpg", "p.jpg",
+                "1", confidence, "no_detection", 0.0,
+                10.0, 10.0, 100.0, largestBoxRatio, detectionsJson, 0));
+        doReturn(shotAt).when(photo).getCreatedAt();
+        return photo;
+    }
+
+    private Photo photoWithGreen(int portIndex, LocalDateTime shotAt, double boxRatio, double greenRatio) {
         Photo photo = spy(new Photo(device, portIndex, "/p.jpg", "p.jpg",
                 "1", 0.9, "no_detection", 0.0,
-                10.0, 10.0, 100.0, largestBoxRatio, detectionsJson, 0));
+                10.0, 10.0, 100.0, boxRatio, null, 0, greenRatio));
         doReturn(shotAt).when(photo).getCreatedAt();
         return photo;
     }

@@ -7,7 +7,7 @@ import java.util.List;
 
 /**
  * 포트별 성장 추이. 크기는 이 포트 자신의 과거와 견주고, 속도는 같은 품종의 다른 재배 기록과 견준다.
- * 크기는 신뢰도 70% 이상인 사진의 검출 박스에서 고른 식물 범위의 프레임 대비 면적 비율(0~1)이다.
+ * 크기는 기존 카메라 신뢰도 70%, 광각 카메라 60% 이상인 대상 포트 검출 범위의 프레임 대비 면적 비율(0~1)이다.
  * 박스 면적은 실제 식물 크기가 아니며, 근거가 부족한 항목은 값을 채우지 않는다.
  */
 @Getter
@@ -20,6 +20,10 @@ public class GrowthTrendResponseDto {
     private final Integer portCount;       // 같은 경과일에서 실제로 비교된 포트 수(자기 자신 포함)
     private final Double gapPercent;       // (이 포트 최신 - 또래 평균 최신) / 또래 평균 최신 * 100, null 가능
     private final Double latestRatio;      // 이 포트 최신 관측 크기, null 가능
+    private final Double latestBoxRatio;   // 최신 날짜의 연결된 YOLO 박스 면적 비율
+    private final Double latestGreenRatio; // 최신 날짜의 녹색 픽셀 면적 비율, 없으면 null
+    private final boolean latestLowerBound; // 화면 끝에 닿아 실제 크기는 표시값 이상
+    private final String measurement;      // box 또는 box_green
     private final List<PortHealth> ports;  // 기기 전체 포트의 상태. 근거 부족은 pending.
     private final SizeChange sizeChange;   // 이 포트가 며칠 전보다 얼마나 커졌는지
     private final GrowthRate growthRate;   // 이 포트의 최근 성장 속도. 다른 재배와 견주는 데 쓴다
@@ -28,6 +32,8 @@ public class GrowthTrendResponseDto {
 
     public GrowthTrendResponseDto(Integer portIndex, List<Point> points, List<Point> peerPoints,
                                   Integer rank, Integer portCount, Double gapPercent, Double latestRatio,
+                                  Double latestBoxRatio, Double latestGreenRatio,
+                                  boolean latestLowerBound, String measurement,
                                   List<PortHealth> ports, SizeChange sizeChange, GrowthRate growthRate,
                                   Reference reference,
                                   Long viewChangedDay) {
@@ -38,6 +44,10 @@ public class GrowthTrendResponseDto {
         this.portCount = portCount;
         this.gapPercent = gapPercent;
         this.latestRatio = latestRatio;
+        this.latestBoxRatio = latestBoxRatio;
+        this.latestGreenRatio = latestGreenRatio;
+        this.latestLowerBound = latestLowerBound;
+        this.measurement = measurement;
         this.ports = ports;
         this.sizeChange = sizeChange;
         this.growthRate = growthRate;
@@ -51,6 +61,7 @@ public class GrowthTrendResponseDto {
         private final String date;       // yyyy-MM-dd (화면 라벨용)
         private final Long elapsedDay;   // 파종 후 경과일 — 또래 비교의 기준축
         private final Double value;      // boxAreaRatio (0~1)
+        private final boolean lowerBound;
     }
 
     /**
@@ -65,9 +76,10 @@ public class GrowthTrendResponseDto {
         private final Double fromRatio;       // 그날의 크기(프레임 대비 0~1)
         private final Double toRatio;         // 가장 최근 날의 크기
         private final Double changePercent;   // (toRatio / fromRatio - 1) * 100
+        private final boolean lowerBound;
 
         public static SizeChange pending() {
-            return new SizeChange(false, null, null, null, null);
+            return new SizeChange(false, null, null, null, null, false);
         }
     }
 
@@ -102,13 +114,14 @@ public class GrowthTrendResponseDto {
         private final Double highRatePerDay;  // 상위 25%
         private final Integer plantCount;     // 비교에 들어간 재배 기록 수(자기 자신 제외)
         private final String verdict;
+        private final List<Integer> portIndices; // 비교 기록의 포트 번호(0부터 시작). 같은 포트의 여러 재배가 있을 수 있음.
 
         public static Reference notReady() {
-            return new Reference(false, null, null, null, null, null);
+            return new Reference(false, null, null, null, null, null, List.of());
         }
     }
 
-    /** health: pending(비교 대기) · good(같은 시기와 비슷하거나 빠름) · warn(같은 시기보다 느림) · bad(질병). */
+    /** health: pending(크기·속도 중 근거 부족) · good(크기·속도 모두 정상) · warn(크기 감소 또는 속도 느림) · bad(질병). */
     @Getter
     @AllArgsConstructor
     public static class PortHealth {

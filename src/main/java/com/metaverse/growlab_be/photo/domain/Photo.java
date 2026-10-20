@@ -56,6 +56,9 @@ public class Photo extends TimeStamped {
     @Column
     private Double boxAreaRatio;  // 박스 면적 / 프레임 면적 (0~1)
 
+    @Column(name = "green_area_ratio", nullable = true)
+    private Double greenAreaRatio; // 대상 포트 식물 박스 안의 녹색 픽셀 / 전체 프레임 면적
+
     // ── 검출된 전체 박스 원본. 정규화 좌표(xywhn) 기준 JSON 배열: [{cls, conf, x, y, w, h}, ...]
     //    대표 박스 선택 규칙(현재: 최대 면적)이 나중에 바뀌어도 재검증할 수 있게 전부 남긴다.
     @Column(columnDefinition = "TEXT")
@@ -88,6 +91,16 @@ public class Photo extends TimeStamped {
                  String diseaseResult, Double diseaseConfidence,
                  Double boxWidth, Double boxHeight, Double boxArea, Double boxAreaRatio,
                  String detectionsJson, Integer selectedBoxIndex) {
+        this(device, portIndex, filePath, fileName, growthStageResult, confidence,
+                diseaseResult, diseaseConfidence, boxWidth, boxHeight, boxArea, boxAreaRatio,
+                detectionsJson, selectedBoxIndex, null);
+    }
+
+    public Photo(Device device, Integer portIndex, String filePath, String fileName,
+                 String growthStageResult, Double confidence,
+                 String diseaseResult, Double diseaseConfidence,
+                 Double boxWidth, Double boxHeight, Double boxArea, Double boxAreaRatio,
+                 String detectionsJson, Integer selectedBoxIndex, Double greenAreaRatio) {
         this.device            = device;
         this.portIndex         = portIndex;
         this.filePath          = filePath;
@@ -100,7 +113,13 @@ public class Photo extends TimeStamped {
         this.boxHeight         = boxHeight;
         this.boxArea           = boxArea;
         this.boxAreaRatio      = boxAreaRatio;
+        this.greenAreaRatio    = greenAreaRatio;
         this.detectionsJson    = detectionsJson;
         this.selectedBoxIndex  = selectedBoxIndex;
+    }
+
+    public void recordGreenAreaRatio(double ratio) {
+        if (!Double.isFinite(ratio) || ratio < 0 || ratio > 1) throw new IllegalArgumentException("Invalid green area ratio");
+        this.greenAreaRatio = ratio;
     }
 }
