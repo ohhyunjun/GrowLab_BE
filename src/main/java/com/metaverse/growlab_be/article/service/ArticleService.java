@@ -63,7 +63,7 @@ public class ArticleService {
                                              HttpServletRequest request, HttpServletResponse response) {
         Article foundArticle = getValidArticleById(articleId);
 
-        updateViewCountWithCookie(foundArticle, request, response);
+        updateViewCountWithCookie(foundArticle, principalDetails, request, response);
 
         User logginedUser = (principalDetails != null) ? principalDetails.user() : null;
 
@@ -147,38 +147,36 @@ public class ArticleService {
         return articleResponseDtos;
     }
 
-    private void updateViewCountWithCookie(Article article, HttpServletRequest request, HttpServletResponse response) {
-        Cookie[] cookies = request.getCookies();
-        Cookie oldCookie = null;
+    private void updateViewCountWithCookie(Article article, PrincipalDetails principalDetails,
+                                           HttpServletRequest request, HttpServletResponse response) {
+        String cookieName = principalDetails == null
+                ? "growLabPostView"
+                : "growLabPostView_u" + principalDetails.user().getId();
         String articleIdTag = "[" + article.getId() + "]";
-
+        String viewedArticles = "";
+        Cookie[] cookies = request.getCookies();
         if (cookies != null) {
             for (Cookie cookie : cookies) {
-                if (cookie.getName().equals("growLabPostView")) {
-                    oldCookie = cookie;
+                if (cookieName.equals(cookie.getName())) {
+                    viewedArticles = cookie.getValue();
                     break;
                 }
             }
         }
+        if (viewedArticles.contains(articleIdTag)) return;
 
-        if (oldCookie != null) {
-            if (!oldCookie.getValue().contains(articleIdTag)) {
-                article.setViewCount(article.getViewCount() + 1);
-                oldCookie.setValue(oldCookie.getValue() + articleIdTag);
-                oldCookie.setPath("/");
-                oldCookie.setMaxAge(60 * 60 * 24);
-                response.addCookie(oldCookie);
-            }
-
-        } else {
-            article.setViewCount(article.getViewCount() + 1);
-            Cookie newCookie = new Cookie("growLabPostView", articleIdTag);
-            newCookie.setPath("/");
-            newCookie.setHttpOnly(true);
-            newCookie.setMaxAge(60 * 60 * 24);
-            response.addCookie(newCookie);
-
-        }
+        article.setViewCount(article.getViewCount() + 1);
+        Cookie viewCookie = new Cookie(cookieName, viewedArticles + articleIdTag);
+        viewCookie.setPath("/");
+        viewCookie.setHttpOnly(true);
+        viewCookie.setMaxAge(60 * 60 * 24);
+        // AWS can terminate HTTPS at the proxy while forwarding HTTP to this service.
+        String forwardedProto = request.getHeader("X-Forwarded-Proto");
+        boolean secure = request.isSecure() || (forwardedProto != null
+                && "https".equalsIgnoreCase(forwardedProto.split(",", 2)[0].trim()));
+        viewCookie.setSecure(secure);
+        viewCookie.setAttribute("SameSite", secure ? "None" : "Lax");
+        response.addCookie(viewCookie);
     }
 
     public Page<ArticleResponseDto> getMyArticle(PrincipalDetails principalDetails, Pageable pageable) {
