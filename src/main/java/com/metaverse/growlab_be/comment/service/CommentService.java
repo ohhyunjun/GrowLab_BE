@@ -10,6 +10,7 @@ import com.metaverse.growlab_be.comment.dto.CommentRequestDto;
 import com.metaverse.growlab_be.comment.dto.CommentResponseDto;
 import com.metaverse.growlab_be.comment.repository.CommentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,8 +55,12 @@ public class CommentService {
     }
 
     @Transactional
-    public CommentResponseDto updateComment(Long commentId, CommentRequestDto commentRequestDto) {
+    public CommentResponseDto updateComment(Long commentId, CommentRequestDto commentRequestDto,
+                                            PrincipalDetails principalDetails) {
         Comment foundComment = getValidCommentById(commentId);
+        if (!foundComment.getUser().getId().equals(principalDetails.user().getId())) {
+            throw new AccessDeniedException("본인의 댓글만 수정할 수 있습니다.");
+        }
         foundComment.update(commentRequestDto);
         return new CommentResponseDto(foundComment);
     }
