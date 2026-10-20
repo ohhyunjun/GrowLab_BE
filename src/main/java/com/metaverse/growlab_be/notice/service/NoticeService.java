@@ -4,6 +4,9 @@ import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.auth.repository.UserRepository;
 import com.metaverse.growlab_be.device.domain.Device;
 import com.metaverse.growlab_be.device.repository.DeviceRepository;
+import com.metaverse.growlab_be.plant.domain.Plant;
+import com.metaverse.growlab_be.species.domain.Species;
+import com.metaverse.growlab_be.species.service.SharedEnvironment;
 import com.metaverse.growlab_be.notice.domain.Notice;
 import com.metaverse.growlab_be.notice.domain.NoticeType;
 import com.metaverse.growlab_be.notice.dto.NoticeRequestDto;
@@ -16,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -89,58 +94,108 @@ public class NoticeService {
 
     // [카메라 기반] 분석 알림 생성
     @Transactional
-    public void createAnalysisNotice(Device device, String message, NoticeType type, Integer priority) {
+    public void createAnalysisNotice(Device device, Plant plant, String message, NoticeType type, Integer priority) {
         User user = device.getUser();
-        if (user == null) return;
+        if (user == null || plant.getId() == null) return;
 
+        String marker = "\"source\":\"camera_analysis\",\"plantId\":" + plant.getId();
         if (type == NoticeType.SENSOR_ALERT) {
-            boolean hasUnread = noticeRepository.existsByUserAndDeviceSerialAndNoticeTypeAndIsReadFalse(
-                    user, device.getId(), type);
+            // 질병 알림은 이 식물의 카메라 알림만 중복 검사한다.
+            boolean hasUnread = noticeRepository.existsByUserAndDeviceSerialAndNoticeTypeAndAdditionalDataContainingAndIsReadFalse(
+                    user, device.getId(), NoticeType.SENSOR_ALERT, marker);
             if (hasUnread) return;
 
             LocalDateTime oneHourAgo = LocalDateTime.now().minusHours(1);
-            boolean hasRecent = noticeRepository.existsByUserAndDeviceSerialAndNoticeTypeAndCreatedAtAfter(
-                    user, device.getId(), type, oneHourAgo);
+            boolean hasRecent = noticeRepository.existsByUserAndDeviceSerialAndNoticeTypeAndAdditionalDataContainingAndCreatedAtAfter(
+                    user, device.getId(), NoticeType.SENSOR_ALERT, marker, oneHourAgo);
             if (hasRecent) return;
         }
 
-        Notice notice = new Notice(device.getId(), message, type, priority, "{\"source\":\"camera_analysis\"}", user);
-        noticeRepository.save(notice);
+        String additionalData = "{" + marker + "}";
+        noticeRepository.save(new Notice(device.getId(), message, type, priority, additionalData, user));
     }
 
-    // [센서 기반] RPi 알림 처리 (WATER 메시지 분기 복구)
+    private static final Set<String> ENVIRONMENT_SENSORS = Set.of("TEMP", "HUM", "PH", "TDS");
+
+    // Arduino detects an out-of-range reading; RPi forwards its alert here.
     @Transactional
     public void createAlertFromRpi(NoticeRequestDto dto) {
+        if (dto.getSensor() == null || dto.getSensor().isBlank()) {
+            throw new IllegalArgumentException("센서 종류가 필요합니다.");
+        }
+        String sensor = dto.getSensor().trim().toUpperCase(Locale.ROOT);
+        Float value = dto.getValue();
+        if (!"WATER".equals(sensor) && (value == null || !Float.isFinite(value))) {
+            throw new IllegalArgumentException("유효한 센서값이 필요합니다.");
+        }
+
         Device device = deviceRepository.findById(dto.getSerial_number())
                 .orElseThrow(() -> new IllegalArgumentException("등록되지 않은 기기입니다."));
-
         User user = device.getUser();
         if (user == null) return;
 
-        boolean hasUnread = noticeRepository.existsByUserAndDeviceSerialAndAdditionalDataContainingAndIsReadFalse(
-                user, device.getId(), dto.getSensor());
-        if (hasUnread) return;
-
-        int cooldownHours = COOLDOWN_HOURS.getOrDefault(dto.getSensor().toUpperCase(), 1);
-        LocalDateTime cooldownTime = LocalDateTime.now().minusHours(cooldownHours);
-
-        boolean hasRecent = noticeRepository.existsByUserAndDeviceSerialAndAdditionalDataContainingAndCreatedAtAfter(
-                user, device.getId(), dto.getSensor(), cooldownTime);
-        if (hasRecent) return;
-
-        // [수정] WATER 센서 특별 메시지 분기 처리 복구
-        String message;
-        String additionalData;
-        if ("WATER".equalsIgnoreCase(dto.getSensor())) {
-            message = "[물 부족] 수위가 낮습니다.";
-            additionalData = "{\"sensor\":\"WATER\", \"value\":0}";
-        } else {
-            message = String.format("[%s] 이상값 감지: %.2f", dto.getSensor(), dto.getValue());
-            additionalData = String.format("{\"sensor\":\"%s\",\"value\":%.2f}", dto.getSensor(), dto.getValue());
+        if (ENVIRONMENT_SENSORS.contains(sensor)) {
+            if (device.getActivePlants().isEmpty()) return;
+            try {
+                SharedEnvironment current = SharedEnvironment.fromSpecies(
+                        device.getActivePlants().stream().map(Plant::getSpecies).toList());
+                if (!rangeFor(current, sensor).outside(value)) return;
+            } catch (IllegalArgumentException | IllegalStateException invalidRanges) {
+                return;
+            }
         }
 
-        Notice notice = new Notice(dto.getSerial_number(), message, NoticeType.SENSOR_ALERT, 1, additionalData, user);
-        noticeRepository.save(notice);
+        String marker = "\"sensor\":\"" + sensor + "\"";
+        if (noticeRepository.existsByUserAndDeviceSerialAndAdditionalDataContainingAndIsReadFalse(
+                user, device.getId(), marker)) return;
+        int cooldownHours = COOLDOWN_HOURS.getOrDefault(sensor, 1);
+        if (noticeRepository.existsByUserAndDeviceSerialAndAdditionalDataContainingAndCreatedAtAfter(
+                user, device.getId(), marker, LocalDateTime.now().minusHours(cooldownHours))) return;
+
+        String message;
+        String additionalData;
+        if ("WATER".equals(sensor)) {
+            message = "[물 부족] 수위가 낮습니다.";
+            additionalData = "{\"source\":\"arduino_alert\",\"sensor\":\"WATER\",\"value\":0}";
+        } else {
+            String label = device.getDeviceNickname() == null ? device.getId() : device.getDeviceNickname();
+            String affected = affectedSpecies(device, sensor, value);
+            String suffix = affected.isBlank() ? "" : " (영향 품종: " + affected + ")";
+            message = String.format(Locale.ROOT, "[%s] %s 적정 범위 이탈: %.2f%s",
+                    label, sensor, value, suffix);
+            additionalData = String.format(Locale.ROOT,
+                    "{\"source\":\"arduino_alert\",\"sensor\":\"%s\",\"value\":%.2f}",
+                    sensor, value);
+        }
+        noticeRepository.save(new Notice(device.getId(), message, NoticeType.SENSOR_ALERT, 1,
+                additionalData, user));
+    }
+
+    private String affectedSpecies(Device device, String sensor, Float value) {
+        if (!ENVIRONMENT_SENSORS.contains(sensor)) return "";
+        return device.getActivePlants().stream().map(Plant::getSpecies)
+                .filter(species -> rangeFor(species, sensor).outside(value))
+                .map(Species::getName).distinct().collect(Collectors.joining(", "));
+    }
+
+    private SharedEnvironment.Range rangeFor(SharedEnvironment environment, String sensor) {
+        return switch (sensor) {
+            case "TEMP" -> environment.temperature();
+            case "HUM" -> environment.humidity();
+            case "PH" -> environment.ph();
+            case "TDS" -> environment.tds();
+            default -> throw new IllegalArgumentException("지원하지 않는 센서입니다.");
+        };
+    }
+
+    private SharedEnvironment.Range rangeFor(Species species, String sensor) {
+        return switch (sensor) {
+            case "TEMP" -> new SharedEnvironment.Range(species.getMinTemperature(), species.getMaxTemperature());
+            case "HUM" -> new SharedEnvironment.Range(species.getMinHumidity(), species.getMaxHumidity());
+            case "PH" -> new SharedEnvironment.Range(species.getMinPh(), species.getMaxPh());
+            case "TDS" -> new SharedEnvironment.Range(species.getMinTds(), species.getMaxTds());
+            default -> throw new IllegalArgumentException("지원하지 않는 센서입니다.");
+        };
     }
 
     private void validateOwner(Notice notice, User user) {

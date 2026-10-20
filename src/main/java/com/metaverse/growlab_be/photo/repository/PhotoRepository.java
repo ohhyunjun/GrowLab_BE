@@ -10,6 +10,8 @@ import java.util.Optional;
 
 @Repository
 public interface PhotoRepository extends JpaRepository<Photo, Long> {
+    java.util.Optional<Photo> findByDeviceIdAndObservationId(String serial, String observationId);
+    boolean existsByPlantIdAndCapturedAtAfter(Long plantId, java.time.Instant capturedAt);
     Optional<Photo> findTopByOrderByIdDesc();// JpaRepository<관리할 엔티티, 엔티티의 ID 타입>
 
     //디바이스별 사진 조회 (최신순)
@@ -19,4 +21,8 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
 
     List<Photo> findByDevice(Device device);
     void deleteByDevice(Device device);
+
+    // 성장 추이(관측 크기)용 — boxAreaRatio가 있는 사진만 오래된→최신 순.
+    // 포트별 시계열과 또래 평균을 서비스에서 계산한다.
+    List<Photo> findByDeviceAndBoxAreaRatioIsNotNullOrderByCreatedAtAsc(Device device);
 }

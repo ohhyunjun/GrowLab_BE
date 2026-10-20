@@ -28,15 +28,19 @@ public class File extends TimeStamped {
     @Column(nullable = false)
     private String filePath;
 
+    @Column(nullable = false, length = 1024)
+    private String fileUrl;
+
     // Article와의 N:1 관계 설정
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "article_id", nullable = true)
     private Article article;
 
-    public File(String originalFileName, String storedFileName, String filePath, Article article) {
+    public File(String originalFileName, String storedFileName, String filePath, String fileUrl, Article article) {
         this.originalFileName = originalFileName;
         this.storedFileName = storedFileName;
         this.filePath = filePath;
+        this.fileUrl = fileUrl;
         this.article = article;
     }
 
@@ -44,10 +48,11 @@ public class File extends TimeStamped {
     @JoinColumn(name = "diary_id", nullable = true)
     private Diary diary;
 
-    public File(String originalFileName, String storedFileName, String filePath, Diary diary) {
+    public File(String originalFileName, String storedFileName, String filePath, String fileUrl, Diary diary) {
         this.originalFileName = originalFileName;
         this.storedFileName = storedFileName;
         this.filePath = filePath;
+        this.fileUrl = fileUrl;
         this.diary = diary;
     }
 

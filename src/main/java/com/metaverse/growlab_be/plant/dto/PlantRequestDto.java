@@ -13,4 +13,5 @@ public class PlantRequestDto {
     private LocalDateTime maturedAt;
     private String serialNumber;
     private Integer portIndex;
+    private Long speciesId;
 }

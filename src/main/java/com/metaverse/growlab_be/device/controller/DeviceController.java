@@ -71,6 +71,8 @@ public class DeviceController {
         try {
             deviceService.deleteDevice(serialNumber, principalDetails.getUser());
             return ResponseEntity.ok("기기가 성공적으로 해제되었습니다.");
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (AccessDeniedException e) {
@@ -130,6 +132,10 @@ public class DeviceController {
             @PathVariable String serialNumber,
             @RequestBody PortStatusRequestDto requestDto,
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
+        if (requestDto.getPortIndex() == null || requestDto.getPortIndex() < 0
+                || requestDto.getPortIndex() >= 8 || requestDto.getStatus() == null) {
+            return ResponseEntity.badRequest().body("포트 번호는 0~7이고 상태는 필수입니다.");
+        }
         try {
             deviceService.updatePortStatus(
                     serialNumber,
@@ -137,6 +143,8 @@ public class DeviceController {
                     requestDto.getStatus(),
                     principalDetails.getUser());
             return ResponseEntity.ok(requestDto.getPortIndex() + "번 포트 상태 변경 완료");
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (AccessDeniedException e) {
@@ -144,24 +152,4 @@ public class DeviceController {
         }
     }
 
-    // ✅ 기기 대표 품종 설정/변경 - PATCH /api/devices/{serialNumber}/species
-    @PatchMapping("/{serialNumber}/species")
-    public ResponseEntity<?> updateDeviceSpecies(
-            @PathVariable String serialNumber,
-            @Valid @RequestBody DeviceSpeciesRequestDto requestDto,
-            @AuthenticationPrincipal PrincipalDetails principalDetails) {
-        try {
-            DeviceResponseDto result = deviceService.updateDeviceSpecies(
-                    serialNumber,
-                    requestDto.getSpeciesId(),
-                    principalDetails.getUser());
-            return ResponseEntity.ok(result);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-        } catch (IllegalStateException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-        } catch (AccessDeniedException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
-        }
-    }
 }

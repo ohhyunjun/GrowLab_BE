@@ -51,4 +51,14 @@ public class SpeciesController {
         speciesService.deleteSpecies(speciesId);
         return ResponseEntity.noContent().build();
     }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<String> invalidSpecies(IllegalArgumentException error) {
+        return ResponseEntity.badRequest().body(error.getMessage());
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<String> speciesInUse(IllegalStateException error) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error.getMessage());
+    }
 }

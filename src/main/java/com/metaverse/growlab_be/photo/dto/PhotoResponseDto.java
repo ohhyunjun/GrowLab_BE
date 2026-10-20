@@ -23,6 +23,20 @@ public class PhotoResponseDto {
     private final String diseaseResult;
     private final Double diseaseConfidence;
 
+    // 전체 식물 박스 크기(관측값). RPi가 안 보낸 사진은 null.
+    private final Double boxWidth;
+    private final Double boxHeight;
+    private final Double boxArea;
+    private final Double boxAreaRatio;
+    private final Double greenAreaRatio;
+
+    // 검출된 전체 박스 원본(JSON)과 대표 박스 인덱스.
+    private final String detectionsJson;
+    private final Integer selectedBoxIndex;
+    private final Long plantId;
+    private final java.time.Instant capturedAt;
+    private final String observationId;
+
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
     private final LocalDateTime createdAt;
 
@@ -38,5 +52,15 @@ public class PhotoResponseDto {
         this.confidence = photo.getConfidence();
         this.diseaseResult = photo.getDiseaseResult();
         this.diseaseConfidence = photo.getDiseaseConfidence();
+        this.boxWidth = photo.getBoxWidth();
+        this.boxHeight = photo.getBoxHeight();
+        this.boxArea = photo.getBoxArea();
+        this.boxAreaRatio = photo.getBoxAreaRatio();
+        this.greenAreaRatio = photo.getGreenAreaRatio();
+        this.detectionsJson = photo.getDetectionsJson();
+        this.selectedBoxIndex = photo.getSelectedBoxIndex();
+        this.plantId=photo.getPlantId();
+        this.capturedAt=photo.getCapturedAt();
+        this.observationId=photo.getObservationId();
     }
 }

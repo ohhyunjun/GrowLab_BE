@@ -35,3 +35,6 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### 런타임 업로드 산출물 (소스 아님) ###
+uploads/

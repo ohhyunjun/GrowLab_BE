@@ -5,7 +5,6 @@ import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.comment.domain.Comment;
 import com.metaverse.growlab_be.common.TimeStamped;
 import com.metaverse.growlab_be.file.domain.File;
-import com.metaverse.growlab_be.image.domain.Image;
 import com.metaverse.growlab_be.likes.articleLike.domain.ArticleLike;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -54,10 +53,6 @@ public class Article extends TimeStamped {
     @OneToMany(mappedBy = "article", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ArticleLike> articleLikes = new ArrayList<>();
 
-    // Image와의 1:N 관계 설정
-    @OneToMany(mappedBy = "article", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Image> images = new ArrayList<>();
-
     public Article(ArticleRequestDto articleRequestDto, User user) {
         this.title = articleRequestDto.getTitle();
         this.content = articleRequestDto.getContent();
@@ -65,9 +60,9 @@ public class Article extends TimeStamped {
         this.category = articleRequestDto.getCategory();
     }
 
-    public void addImage(Image image) {
-        this.images.add(image);
-        image.setArticle(this);
+    public void addFile(File file) {
+        this.files.add(file);
+        file.setArticle(this);
     }
 
     public void update(ArticleRequestDto articleRequestDto) {

@@ -1,15 +1,12 @@
 package com.metaverse.growlab_be.plant.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.metaverse.growlab_be.diary.dto.DiaryResponseDto;
 import com.metaverse.growlab_be.plant.domain.Plant;
 import com.metaverse.growlab_be.species.domain.Species;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Getter
 @AllArgsConstructor
@@ -49,8 +46,6 @@ public class PlantResponseDto {
 
     private String diseaseResult;
 
-    private List<DiaryResponseDto> diaries;
-
     public PlantResponseDto(Plant plant) {
         this.id = plant.getId();
         this.name = plant.getName();
@@ -71,15 +66,8 @@ public class PlantResponseDto {
         this.portIndex = plant.getPortIndex();
         this.diseaseResult = plant.getDiseaseResult();
 
-        if (plant.getDiaries() != null) {
-            this.diaries = plant.getDiaries()
-                    .stream()
-                    .map(DiaryResponseDto::new)
-                    .collect(Collectors.toList());
-        }
-
-        if (plant.getDevice() != null && plant.getDevice().getSpecies() != null) {
-            Species species = plant.getDevice().getSpecies();
+        if (plant.getSpecies() != null) {
+            Species species = plant.getSpecies();
             this.speciesId = species.getId();
             this.speciesName = species.getName();
             this.daysToMature = species.getDaysToMature();

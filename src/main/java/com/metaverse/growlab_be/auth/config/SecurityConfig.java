@@ -3,6 +3,7 @@ package com.metaverse.growlab_be.auth.config;
 import com.metaverse.growlab_be.auth.filter.JwtAuthenticationFilter;
 import com.metaverse.growlab_be.auth.handler.CustomAccessDeniedHandler;
 import com.metaverse.growlab_be.auth.handler.CustomAuthenticationEntryPoint;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -58,10 +59,13 @@ public class SecurityConfig {
                 // 인가(Authorization) 부분으로 엔드포인트 접근 권한을 설정하는 부분
                 .authorizeHttpRequests((authorize) -> authorize
 
+                        // Preserve the original HTTP status when Spring dispatches an error to /error.
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // 1. 인증 없이 접근 가능한 공개 API
-                        .requestMatchers("/api/auth/**", "/api/sample/**", "/api/files/**","/uploads/**", "/api/anomalies/**" ).permitAll()
+                        .requestMatchers("/api/auth/**", "/api/sample/**", "/uploads/**" ).permitAll()
 
                         //Flask 서버 인증 없이 접근 허용
                         .requestMatchers(HttpMethod.POST, "/api/predictions").permitAll()
@@ -72,6 +76,8 @@ public class SecurityConfig {
                         // 라즈베리파이 -> 서버 전송 (JWT 없이 시리얼 번호로만 인증)
                         .requestMatchers(HttpMethod.POST, "/api/sensor_logs/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/photos").permitAll()
+                        // The controller verifies a per-device X-Device-Key.
+                        .requestMatchers(HttpMethod.GET, "/api/device-edge/*/ports").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/notices/alert").permitAll()
 
                         // 실시간 센서값 수신 + SSE 구독

@@ -4,10 +4,13 @@ import com.metaverse.growlab_be.auth.domain.User;
 import com.metaverse.growlab_be.device.domain.Device;
 import com.metaverse.growlab_be.device.dto.*;
 import com.metaverse.growlab_be.device.repository.DeviceRepository;
+import com.metaverse.growlab_be.diary.repository.DiaryRepository;
+import com.metaverse.growlab_be.notice.repository.NoticeRepository;
 import com.metaverse.growlab_be.photo.domain.Photo;
 import com.metaverse.growlab_be.photo.repository.PhotoRepository;
+import com.metaverse.growlab_be.sensor_log.repository.SensorLogRepository;
+import com.metaverse.growlab_be.sensor_log.service.SensorLogService;
 import com.metaverse.growlab_be.species.domain.Species;
-import com.metaverse.growlab_be.species.repository.SpeciesRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -18,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.List;
 
@@ -29,21 +33,36 @@ public class DeviceService {
 
     private final DeviceRepository deviceRepository;
     private final PhotoRepository  photoRepository;
-    private final SpeciesRepository speciesRepository;
+    private final SensorLogRepository sensorLogRepository;
+    private final NoticeRepository noticeRepository;
+    private final DiaryRepository diaryRepository;
     private final ObjectProvider<MqttPublisher> mqttPublisherProvider;
+    private final SensorLogService sensorLogService;
 
-    // 배포 전에 이미 품종이 지정돼 있던 기기도 retained thresholds를 받도록 재발행한다.
+    private static final int MAX_PHOTO_INTERVAL_HOURS = 6;
+
+    // 시작 시 포트별 품종을 기준으로 retained thresholds를 다시 발행한다.
     @EventListener(ApplicationReadyEvent.class)
+    @Transactional
     public void publishRetainedThresholdsOnStartup() {
-        mqttPublisherProvider.ifAvailable(publisher ->
-                deviceRepository.findAll().forEach(device -> {
-                    try {
-                        publisher.publishThresholds(device.getId(), device.getSpecies());
-                    } catch (RuntimeException e) {
-                        log.warn("[MQTT] 시작 시 thresholds 동기화 실패 - serial={}", device.getId(), e);
-                    }
-                })
-        );
+        MqttPublisher publisher = mqttPublisherProvider.getIfAvailable();
+        deviceRepository.findAll().forEach(device -> {
+            Integer savedInterval = device.getPhotoInterval();
+            int interval = savedInterval == null ? MAX_PHOTO_INTERVAL_HOURS
+                    : Math.max(1, Math.min(savedInterval, MAX_PHOTO_INTERVAL_HOURS));
+            if (!Integer.valueOf(interval).equals(savedInterval)) {
+                device.setPhotoInterval(interval);
+            }
+            if (publisher != null) {
+                try {
+                    publisher.publishPhotoInterval(device.getId(), interval);
+                    publisher.publishThresholdsForPlants(device.getId(), device.getActivePlants());
+                    publisher.publishPortState(device.getId(), device.getPortStatus(), device.getActivePlants());
+                } catch (RuntimeException e) {
+                    log.warn("[MQTT] 시작 시 기기 설정 동기화 실패 - serial={}", device.getId(), e);
+                }
+            }
+        });
     }
 
     public List<DeviceResponseDto> getUserDevices(User user) {
@@ -55,14 +74,33 @@ public class DeviceService {
                             .map(Photo::getCreatedAt)
                             .orElse(null);
 
-                    List<DeviceResponseDto.PlantSummaryDto> plantSummaries = device.getPlants().stream()
-                            .map(p -> buildPlantSummary(device, p))
+                    List<DeviceResponseDto.PlantSummaryDto> plantSummaries = device.getActivePlants().stream()
+                            .map(this::buildPlantSummary)
                             .sorted(Comparator.comparingInt(DeviceResponseDto.PlantSummaryDto::getPortIndex))
                             .toList();
 
-                    return new DeviceResponseDto(device, lastPhotoAt, plantSummaries);
+                    return new DeviceResponseDto(device, lastPhotoAt, plantSummaries,
+                            currentLedStatus(device, LocalTime.now()));
                 })
                 .toList();
+    }
+
+    // 현재 LED 상태: 기기가 보고한 실제 값 > 자동 모드의 일정 계산 > 마지막 수동 명령.
+    Boolean currentLedStatus(Device device, LocalTime now) {
+        Boolean reported = sensorLogService.getReportedLedStatus(device.getId());
+        if (reported != null) return reported;
+        if (Boolean.TRUE.equals(device.getLedMode())
+                && device.getLedOnTime() != null && device.getLedOffTime() != null) {
+            return isWithinSchedule(device.getLedOnTime(), device.getLedOffTime(), now);
+        }
+        return device.getLedStatus();
+    }
+
+    // 기기(led_scheduler)와 같은 규칙: 시작=종료면 꺼짐, 자정을 넘는 일정도 처리한다.
+    private static boolean isWithinSchedule(LocalTime on, LocalTime off, LocalTime now) {
+        if (on.equals(off)) return false;
+        if (on.isBefore(off)) return !now.isBefore(on) && now.isBefore(off);
+        return !now.isBefore(on) || now.isBefore(off);
     }
 
     public List<AdminDeviceResponseDto> getAllDevicesForAdmin() {
@@ -96,27 +134,40 @@ public class DeviceService {
         if (deviceRepository.existsById(serialNumber)) {
             throw new IllegalArgumentException("이미 존재하는 시리얼 번호입니다: " + serialNumber);
         }
-        deviceRepository.save(new Device(serialNumber, serialNumber));
+        Device device = deviceRepository.save(new Device(serialNumber, serialNumber));
+        mqttPublisherProvider.ifAvailable(publisher -> publisher.publishPortState(
+                serialNumber, device.getPortStatus(), device.getActivePlants()));
     }
 
     @Transactional
     public void deleteDevice(String serialNumber, User user) {
         Device device = findDeviceOwnedByUser(serialNumber, user);
-        device.getPlants().clear();
+        if (!device.getActivePlants().isEmpty()) {
+            throw new IllegalStateException("재배 중인 포트를 먼저 종료해주세요.");
+        }
         device.setUser(null);
-        device.setSpecies(null);
         device.setPortStatus("00000000");
 
         // retained 메시지에 이전 품종 범위가 남지 않도록 제한 없음 값으로 초기화한다.
-        mqttPublisherProvider.ifAvailable(publisher ->
-                publisher.publishThresholds(serialNumber, null));
+        mqttPublisherProvider.ifAvailable(publisher -> {
+            publisher.publishThresholds(serialNumber, null);
+            publisher.publishPortState(serialNumber, device.getPortStatus(), List.of());
+        });
     }
 
     @Transactional
     public void deleteDeviceByAdmin(String serialNumber) {
         Device device = deviceRepository.findById(serialNumber)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기기입니다: " + serialNumber));
+        diaryRepository.deleteByDevice(device);
+        noticeRepository.deleteByDeviceSerial(serialNumber);
+        photoRepository.deleteByDevice(device);
+        sensorLogRepository.deleteByDevice(device);
         deviceRepository.delete(device);
+        mqttPublisherProvider.ifAvailable(publisher -> {
+            publisher.publishThresholds(serialNumber, null);
+            publisher.publishPortState(serialNumber, "00000000", List.of());
+        });
     }
 
     @Transactional
@@ -155,40 +206,24 @@ public class DeviceService {
 
     @Transactional
     public void updatePortStatus(String serialNumber, Integer portIndex, Boolean status, User user) {
+        if (portIndex == null || portIndex < 0 || portIndex >= 8 || status == null) {
+            throw new IllegalArgumentException("포트 번호는 0~7이고 상태는 필수입니다.");
+        }
         Device device = findDeviceOwnedByUser(serialNumber, user);
+        if (!Boolean.TRUE.equals(status) && device.getActivePlants().stream()
+                .anyMatch(plant -> portIndex.equals(plant.getPortIndex()))) {
+            throw new IllegalStateException("식물이 있는 포트는 재배 종료를 통해 OFF해주세요.");
+        }
         char[] bits = device.getPortStatus().toCharArray();
         bits[portIndex] = status ? '1' : '0';
         device.setPortStatus(new String(bits));
+        mqttPublisherProvider.ifAvailable(publisher -> publisher.publishPortState(
+                serialNumber, device.getPortStatus(), device.getActivePlants()));
     }
 
-    @Transactional
-    public DeviceResponseDto updateDeviceSpecies(String serialNumber, Long speciesId, User user) {
-        Device device = findDeviceOwnedByUser(serialNumber, user);
-
-        String portStatus = device.getPortStatus();
-        if (portStatus != null && portStatus.contains("1")) {
-            throw new IllegalStateException("포트가 활성화된 상태에서는 품종을 변경할 수 없습니다.");
-        }
-
-        Species species = speciesRepository.findById(speciesId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 품종입니다: " + speciesId));
-
-        device.setSpecies(species);
-
-        mqttPublisherProvider.ifAvailable(publisher ->
-                publisher.publishThresholds(serialNumber, species));
-
-        List<DeviceResponseDto.PlantSummaryDto> plantSummaries = device.getPlants().stream()
-                .map(p -> buildPlantSummary(device, p))
-                .sorted(Comparator.comparingInt(DeviceResponseDto.PlantSummaryDto::getPortIndex))
-                .toList();
-
-        return new DeviceResponseDto(device, null, plantSummaries);
-    }
-
-    // ✅ 공통: Plant + 소속 기기의 대표 품종을 조합해 요약 DTO 생성
-    private DeviceResponseDto.PlantSummaryDto buildPlantSummary(Device device, com.metaverse.growlab_be.plant.domain.Plant p) {
-        Species species = device.getSpecies();
+    // 포트에 심은 식물의 품종으로 요약 정보를 만든다.
+    private DeviceResponseDto.PlantSummaryDto buildPlantSummary(com.metaverse.growlab_be.plant.domain.Plant p) {
+        Species species = p.getSpecies();
         return new DeviceResponseDto.PlantSummaryDto(
                 p.getId(),
                 p.getName(),
@@ -196,9 +231,22 @@ public class DeviceService {
                 species != null ? species.getName() : null,
                 p.getStageIndex(),
                 species != null ? species.getStageName(p.getStageIndex()) : null,
+                p.getDiseaseResult(),
                 p.getPlantedAt(),
                 p.getGerminatedAt(),
-                p.getMaturedAt()
+                p.getMaturedAt(),
+                species != null ? species.getId() : null,
+                species != null ? species.getMinTemperature() : null,
+                species != null ? species.getMaxTemperature() : null,
+                species != null ? species.getMinHumidity() : null,
+                species != null ? species.getMaxHumidity() : null,
+                species != null ? species.getMinPh() : null,
+                species != null ? species.getMaxPh() : null,
+                species != null ? species.getMinTds() : null,
+                species != null ? species.getMaxTds() : null,
+                species != null ? species.getStageNames() : null,
+                species != null ? species.getStageDurationDays() : null,
+                species != null ? species.getStageCount() : null
         );
     }
 

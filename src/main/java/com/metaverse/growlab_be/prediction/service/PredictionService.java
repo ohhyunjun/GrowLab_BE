@@ -26,7 +26,7 @@ public class PredictionService {
     public void savePrediction(PredictionRequestDto dto) {
         Plant plant = plantRepository.findById(dto.getPlant_id())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 식물입니다."));
-        Species species = plant.getDevice().getSpecies();
+        Species species = plant.getSpecies();
         if (species == null) {
             throw new IllegalArgumentException("해당 식물의 품종 정보가 없습니다.");
         }
@@ -62,7 +62,7 @@ public class PredictionService {
     // 저장된 예측값 + 품종 재배 일정을 조합해 날짜/보정치를 계산한 응답을 만든다
     private PredictionResponseDto buildScheduleResponse(Prediction prediction) {
         Plant plant = prediction.getPlant();
-        Species species = plant.getDevice().getSpecies();
+        Species species = plant.getSpecies();
 
         // 구형 예측 기록은 새 ETA 컬럼이 비어 있으므로 새 예측이 쌓일 때까지 표시하지 않는다.
         if (prediction.getCreatedAt() == null
@@ -82,12 +82,15 @@ public class PredictionService {
 
         LocalDateTime predictedAt = prediction.getCreatedAt();
 
-        // 품종 정보 없이도 계산 가능한 AI 예측 기반 날짜
+        // ── AI 섀도(화면 날짜 아님). AI-Hub 자료에서만 검증됐고 GrowLab 성능은 미확인이라
+        //    화면 예상일은 아래 baselineAt(품종 기준 산술 일정)을 주값으로 쓴다. 아래 세 값은
+        //    기록·후속 비교(산술 vs AI)용으로만 내려보내고, 프론트는 날짜 보정에 쓰지 않는다.
         LocalDateTime expectedAt   = predictedAt.plusHours(prediction.getEtaPointHours());
         LocalDateTime rangeStartAt = predictedAt.plusHours(prediction.getEtaLowerHours());
         LocalDateTime rangeEndAt   = predictedAt.plusHours(prediction.getEtaUpperHours());
 
-        // 품종의 재배 일정이 있어야 계산 가능한 값
+        // ── 화면 주값이 되는 산술 참고 일정. 품종의 재배 일정이 있어야 계산 가능.
+        //    correctionHours = (AI expectedAt − 산술 baselineAt) = 섀도 차이(검증 지표), 화면 반영 아님.
         String predictedStageName = null;
         LocalDateTime baselineAt   = null;
         Long correctionHours       = null;

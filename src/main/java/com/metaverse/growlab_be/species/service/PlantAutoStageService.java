@@ -29,7 +29,7 @@ public class PlantAutoStageService {
     @Scheduled(cron = "0 5 0 * * *")
     @Transactional
     public void advanceStagesByDate() {
-        List<Plant> allPlants = plantRepository.findAll();
+        List<Plant> allPlants = plantRepository.findByEndedAtIsNull();
 
         for (Plant plant : allPlants) {
             try {
@@ -42,9 +42,10 @@ public class PlantAutoStageService {
 
     private void advanceIfDue(Plant plant) {
         Device device = plant.getDevice();
-        if (device == null || device.getSpecies() == null) return;
+        if (device == null) return;
 
-        Species species = device.getSpecies();
+        Species species = plant.getSpecies();
+        if (species == null) return;
         if (plant.getPlantedAt() == null) return;
 
         int daysElapsed = (int) ChronoUnit.DAYS.between(
@@ -74,9 +75,9 @@ public class PlantAutoStageService {
 
         String stageName = species.getStageName(safeTarget);
         String message = safeTarget == maxIndex
-                ? String.format("[%d번 포트] 등록된 재배 일정에 따라 %s 단계에 도달했습니다.", plant.getPortIndex(), stageName)
-                : String.format("[%d번 포트] 등록된 재배 일정에 따라 %s 단계로 전환되었습니다.", plant.getPortIndex(), stageName);
+                ? String.format("[P%d] 등록된 재배 일정에 따라 %s 단계에 도달했습니다.", plant.getPortIndex() + 1, stageName)
+                : String.format("[P%d] 등록된 재배 일정에 따라 %s 단계로 전환되었습니다.", plant.getPortIndex() + 1, stageName);
         int priority = safeTarget == maxIndex ? 1 : 3;
-        noticeService.createAnalysisNotice(device, message, NoticeType.SYSTEM_NOTICE, priority);
+        noticeService.createAnalysisNotice(device, plant, message, NoticeType.SYSTEM_NOTICE, priority);
     }
 }
