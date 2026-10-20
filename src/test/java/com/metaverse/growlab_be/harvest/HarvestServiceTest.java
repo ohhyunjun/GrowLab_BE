@@ -51,6 +51,12 @@ class HarvestServiceTest {
         HarvestPayload p=json.readValue(fixture,HarvestPayload.class);
         assertThat(service.parseAndValidate(fixture,p.observationId(),p.capturedAt(),plant).features()).hasSize(275);
     }
+    @Test void newModelWaitsForGrowingButLegacyQueuedPlantingIsPreserved() throws Exception {
+        var current=valid();current.put("anchor","planting");
+        assertThatThrownBy(()->parse(current)).isInstanceOf(ResponseStatusException.class);
+        var queued=valid();queued.put("modelVersion",HarvestService.LEGACY_MODEL);queued.put("anchor","planting");
+        assertThat(parse(queued).anchor()).isEqualTo("planting");
+    }
     @Test void featureOnlyPayloadGetsItsDateFromEc2() throws Exception {
         var raw=valid();raw.put("status","FEATURES_READY");raw.put("remainingDays",null);raw.put("expectedAt",null);
         HarvestPayload features=parse(raw);

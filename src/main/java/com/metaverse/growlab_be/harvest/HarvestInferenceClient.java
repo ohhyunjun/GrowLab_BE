@@ -35,7 +35,7 @@ public class HarvestInferenceClient {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "수확기 예측 서버에 연결할 수 없습니다.", ex);
         }
         if (result == null || !"PREDICTED".equals(result.status())
-                || !HarvestService.MODEL.equals(result.modelVersion())
+                || !input.modelVersion().equals(result.modelVersion())
                 || !HarvestService.FEATURES.equals(result.featureVersion())
                 || result.remainingDays() == null || !Double.isFinite(result.remainingDays())
                 || result.remainingDays() < 0 || result.expectedAt() == null) {
