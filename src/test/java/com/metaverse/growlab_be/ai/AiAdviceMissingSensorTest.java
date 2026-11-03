@@ -8,8 +8,6 @@ import com.metaverse.growlab_be.species.repository.SpeciesRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.Optional;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
@@ -28,16 +26,14 @@ class AiAdviceMissingSensorTest {
     }
 
     @Test void partialSensorDataNamesMissingMeasurementsInsteadOfZero() {
-        AiAdviceRequestDto request = new AiAdviceRequestDto();
-        request.setSerialNumber("TEST");
-        request.setSpeciesName("상추");
         SensorLogRequestDto sensor = new SensorLogRequestDto();
         ReflectionTestUtils.setField(sensor, "temperature", 20.0f);
-        when(species.findByName("상추")).thenReturn(Optional.empty());
 
-        String prompt = ReflectionTestUtils.invokeMethod(service, "buildPrompt", request, sensor);
+        String prompt = ReflectionTestUtils.invokeMethod(service, "buildPrompt", sensor);
+        assertThat(prompt).contains("기기 공통 재배 환경");
         assertThat(prompt).contains("온도: 20.0°C", "습도: 측정 없음", "pH: 측정 없음",
                 "TDS: 측정 없음", "수위: 측정 없음");
-        assertThat(prompt).doesNotContain("습도: 0.0", "pH: 0.0", "TDS: 0.0", "수위: 0.0");
+        assertThat(prompt).doesNotContain("품종:", "생육 단계:", "습도: 0.0", "pH: 0.0", "TDS: 0.0", "수위: 0.0");
+        verifyNoInteractions(species);
     }
 }
