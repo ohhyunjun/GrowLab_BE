@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -54,7 +53,7 @@ class DeviceServiceCompatibilityTest {
     }
 
     @Test
-    void ledControlFailsWithoutMqttPublisher() {
+    void ledControlSavesSettingsWithoutMqttPublisher() {
         User user = new User();
         user.setId(1L);
         Device device = new Device("GROWLAB-G111", "test");
@@ -62,10 +61,13 @@ class DeviceServiceCompatibilityTest {
         when(devices.findById(device.getId())).thenReturn(Optional.of(device));
         when(publishers.getIfAvailable()).thenReturn(null);
 
-        assertThatThrownBy(() -> service.controlLed(device.getId(), mock(LedRequestDto.class), user))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("MQTT 제어 연결이 비활성화");
-        assertThat(device.getLedStatus()).isFalse();
+        LedRequestDto request = mock(LedRequestDto.class);
+        when(request.getLedMode()).thenReturn(false);
+        when(request.getLedStatus()).thenReturn(true);
+
+        assertThat(service.controlLed(device.getId(), request, user)).isFalse();
+        assertThat(device.getLedStatus()).isTrue();
+        assertThat(device.getLedMode()).isFalse();
     }
 
     @Test

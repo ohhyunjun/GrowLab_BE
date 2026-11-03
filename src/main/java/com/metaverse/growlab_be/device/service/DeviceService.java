@@ -179,27 +179,27 @@ public class DeviceService {
     }
 
     @Transactional
-    public void updatePhotoInterval(String serialNumber, Integer photoInterval, User user) {
+    public boolean updatePhotoInterval(String serialNumber, Integer photoInterval, User user) {
+        if (photoInterval == null || photoInterval < 1 || photoInterval > MAX_PHOTO_INTERVAL_HOURS) {
+            throw new IllegalArgumentException("촬영 주기는 1~6시간으로 설정해주세요.");
+        }
         Device device = findDeviceOwnedByUser(serialNumber, user);
         MqttPublisher publisher = mqttPublisherProvider.getIfAvailable();
-        if (publisher == null) {
-            throw new IllegalStateException("MQTT 제어 연결이 비활성화되어 촬영 주기 명령을 보낼 수 없습니다.");
-        }
         device.setPhotoInterval(photoInterval);
+        // MQTT가 꺼진 개발 환경에서는 트랜잭션으로 DB 설정만 저장한다.
+        if (publisher == null) return false;
         try {
             publisher.publishPhotoInterval(serialNumber, photoInterval);
         } catch (RuntimeException e) {
             throw new IllegalStateException("MQTT 브로커에 촬영 주기 명령을 보낼 수 없습니다.", e);
         }
+        return true;
     }
 
     @Transactional
-    public void controlLed(String serialNumber, LedRequestDto requestDto, User user) {
+    public boolean controlLed(String serialNumber, LedRequestDto requestDto, User user) {
         Device device = findDeviceOwnedByUser(serialNumber, user);
         MqttPublisher publisher = mqttPublisherProvider.getIfAvailable();
-        if (publisher == null) {
-            throw new IllegalStateException("MQTT 제어 연결이 비활성화되어 LED 명령을 보낼 수 없습니다.");
-        }
         String command;
 
         if (Boolean.TRUE.equals(requestDto.getLedMode())) {
@@ -219,11 +219,13 @@ public class DeviceService {
             command = Boolean.TRUE.equals(requestDto.getLedStatus()) ? "O" : "o";
         }
 
+        if (publisher == null) return false;
         try {
             publisher.publishCommand(serialNumber, command);
         } catch (RuntimeException e) {
             throw new IllegalStateException("MQTT 브로커에 LED 명령을 보낼 수 없습니다.", e);
         }
+        return true;
     }
 
     @Transactional

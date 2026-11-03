@@ -93,17 +93,19 @@ public class DeviceController {
         }
     }
 
-    @PatchMapping("/{serialNumber}/photo_interval")
+    @PatchMapping(value = "/{serialNumber}/photo_interval", produces = "text/plain;charset=UTF-8")
     public ResponseEntity<String> updatePhotoInterval(
             @PathVariable String serialNumber,
             @Valid @RequestBody PhotoIntervalRequestDto requestDto,
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
         try {
-            deviceService.updatePhotoInterval(
+            boolean dispatched = deviceService.updatePhotoInterval(
                     serialNumber,
                     requestDto.getPhotoInterval(),
                     principalDetails.getUser());
-            return ResponseEntity.ok(requestDto.getPhotoInterval() + "시간마다 촬영으로 설정되었습니다.");
+            return ResponseEntity.ok(dispatched
+                    ? requestDto.getPhotoInterval() + "시간마다 촬영으로 설정되었습니다."
+                    : requestDto.getPhotoInterval() + "시간 촬영 주기 DB 저장 완료 · MQTT 꺼짐으로 기기 전송 안 됨");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (IllegalStateException e) {
@@ -113,13 +115,16 @@ public class DeviceController {
         }
     }
 
-    @PatchMapping("/{serialNumber}/led")
+    @PatchMapping(value = "/{serialNumber}/led", produces = "text/plain;charset=UTF-8")
     public ResponseEntity<String> updateLed(
             @PathVariable String serialNumber,
             @RequestBody LedRequestDto requestDto,
             @AuthenticationPrincipal PrincipalDetails principalDetails) {
         try {
-            deviceService.controlLed(serialNumber, requestDto, principalDetails.getUser());
+            boolean dispatched = deviceService.controlLed(serialNumber, requestDto, principalDetails.getUser());
+            if (!dispatched) {
+                return ResponseEntity.ok("LED 설정 DB 저장 완료 · MQTT 꺼짐으로 기기 전송 안 됨");
+            }
             String msg = Boolean.TRUE.equals(requestDto.getLedMode())
                     ? "LED 스케줄이 설정되었습니다."
                     : Boolean.TRUE.equals(requestDto.getLedStatus()) ? "LED가 켜졌습니다." : "LED가 꺼졌습니다.";
