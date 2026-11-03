@@ -86,6 +86,7 @@ public class GrowthTrendResponseDto {
     /**
      * 최근 7일 관측으로 구한 하루 성장률(%). 찍히는 자리가 바뀐 뒤에는 그 뒤 관측만으로 계산한다.
      * status: pending(관측 부족) · growing(성장) · flat(정체) · down(관측 크기 감소).
+     * lowerBound=true면 잘린 사진으로 확인한 최소 성장 속도다.
      */
     @Getter
     @AllArgsConstructor
@@ -95,9 +96,10 @@ public class GrowthTrendResponseDto {
         private final String status;
         private final Integer observationDays;    // 계산에 쓴 관측일 수
         private final Integer spanDays;           // 첫 관측과 마지막 관측 사이 일수
+        private final boolean lowerBound;
 
         public static GrowthRate pending() {
-            return new GrowthRate(null, null, "pending", null, null);
+            return new GrowthRate(null, null, "pending", null, null, false);
         }
     }
 

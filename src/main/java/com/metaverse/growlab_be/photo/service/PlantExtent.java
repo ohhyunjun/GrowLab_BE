@@ -5,14 +5,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Comparator;
+import java.util.Locale;
 
 /**
  * 사진 한 장의 검출 박스 목록에서 "이 포트의 식물이 차지한 범위"를 고른다.
  *
- * 기존 카메라는 신뢰도가 가장 높은 박스를 기준으로 쓴다. 2026-10-19 18시 이후 광각
- * 카메라는 촬영 대상 포트의 검은 재배 구멍을 화면 중앙에 둔다. 옆 포트의 잎은 주로 화면
- * 가장자리나 아래쪽에 걸치므로 중앙 구멍을 가리키는 박스만 기준으로 삼는다.
- * 중앙에 대상 식물 검출이 없으면 광각 사진의 크기를 측정하지 않는다.
+ * 기존 카메라의 선택 규칙은 유지한다. 광각 카메라는 첫 유효 사진에서만 중앙 대상의
+ * 연결된 전체 범위를 찾고, 이후에는 같은 재배의 이전 범위와 겹침·거리로 연결한다.
+ * 중심이 움직여도 가로·세로 각각 화면의 25%까지 허용하며 중앙 영역으로 박스를 자르지 않는다.
+ * 멀리 이동한 범위는 반복 확인하고, 새 식물 등록 시에는 별도 추적기를 쓴다.
  */
 final class PlantExtent {
 
@@ -55,6 +57,11 @@ final class PlantExtent {
 
     /** wideCamera=true: only the plant rooted in the central target port is eligible. */
     static Result of(String detectionsJson, boolean wideCamera) {
+        return new Tracker().select(detectionsJson, wideCamera, 0);
+    }
+
+    // Reconstruct the exact region used by older releases before reusing their green-pixel count.
+    static Result legacyOf(String detectionsJson, boolean wideCamera) {
         List<Box> boxes = parse(detectionsJson);
         if (boxes.isEmpty()) return null;
 
@@ -97,6 +104,113 @@ final class PlantExtent {
         bottom = Math.min(1, bottom);
         return new Result((right - left) * (bottom - top), cut, (left + right) / 2, (top + bottom) / 2,
                 left, top, right, bottom, anchor.confidence());
+    }
+
+    static String regionKey(Result extent) {
+        return extent == null ? null : String.format(Locale.ROOT, "tracked-v2:%.6f,%.6f,%.6f,%.6f",
+                extent.left(), extent.top(), extent.right(), extent.bottom());
+    }
+
+    static boolean sameRegion(Result a, Result b) {
+        return a != null && b != null && Math.abs(a.left() - b.left()) < .00001
+                && Math.abs(a.top() - b.top()) < .00001 && Math.abs(a.right() - b.right()) < .00001
+                && Math.abs(a.bottom() - b.bottom()) < .00001;
+    }
+
+    /** One cultivation, replayed in capture order. No state is shared across ports or new plants. */
+    static final class Tracker {
+        // Frame-relative movement, up to 25% of width AND 25% of height; never a clipping region.
+        static final double MAX_MOVEMENT = .25;
+        private Result previous;
+        private Result relocation;
+        private Boolean previousWide;
+
+        Result select(String json, boolean wide, double minConfidence) {
+            if (previousWide != null && previousWide != wide) { previous = null; relocation = null; }
+            previousWide = wide;
+            // Old-camera observations retain their established selection rule.
+            if (!wide) return legacyOf(json, false);
+            List<Box> boxes = parse(json);
+            List<Result> candidates = components(boxes).stream()
+                    .filter(r -> r.confidence() >= minConfidence).toList();
+            if (candidates.isEmpty()) { relocation = null; return null; }
+            if (previous == null) {
+                // Bootstrap only: a central leaf can identify its entire connected plant,
+                // including enclosing boxes whose centers lie outside the old central window.
+                Box seed = boxes.stream().filter(PlantExtent::centerInTarget)
+                        .filter(b -> b.confidence() >= minConfidence)
+                        .max(Comparator.comparingDouble(Box::confidence)).orElse(null);
+                if (seed == null) return null;
+                Result first = candidates.stream().filter(r -> contains(r, seed))
+                        .max(Comparator.comparingDouble(Result::areaRatio)).orElse(null);
+                return accept(first);
+            }
+            Result match = candidates.stream().filter(r -> near(previous, r, MAX_MOVEMENT))
+                    .max(Comparator.comparingDouble(r -> affinity(previous, r))).orElse(null);
+            if (match != null) return accept(match);
+
+            // A distant detection must repeat before it becomes the new viewing position.
+            // A single neighbor/false detection never moves the tracked plant.
+            Result moved = candidates.stream().max(Comparator.comparingDouble(r -> affinity(previous, r))).orElseThrow();
+            if (relocation != null && near(relocation, moved, .08)
+                    && moved.areaRatio() / relocation.areaRatio() >= .5
+                    && moved.areaRatio() / relocation.areaRatio() <= 2) return accept(moved);
+            relocation = moved;
+            return null;
+        }
+
+        private Result accept(Result result) {
+            if (result != null) previous = result;
+            relocation = null;
+            return result;
+        }
+
+        private static boolean near(Result a, Result b, double limit) {
+            return Math.abs(a.centerX() - b.centerX()) <= limit
+                    && Math.abs(a.centerY() - b.centerY()) <= limit;
+        }
+
+        private static double affinity(Result a, Result b) {
+            double intersection = Math.max(0, Math.min(a.right(), b.right()) - Math.max(a.left(), b.left()))
+                    * Math.max(0, Math.min(a.bottom(), b.bottom()) - Math.max(a.top(), b.top()));
+            double iou = intersection / (a.areaRatio() + b.areaRatio() - intersection);
+            return 2 * iou - Math.hypot(a.centerX() - b.centerX(), a.centerY() - b.centerY())
+                    + .01 * b.confidence();
+        }
+    }
+
+    private static boolean contains(Result result, Box box) {
+        return result.left() <= Math.max(0, box.left()) + 1e-9
+                && result.right() >= Math.min(1, box.right()) - 1e-9
+                && result.top() <= Math.max(0, box.top()) + 1e-9
+                && result.bottom() >= Math.min(1, box.bottom()) - 1e-9;
+    }
+
+    private static List<Result> components(List<Box> boxes) {
+        List<Box> rest = new ArrayList<>(boxes);
+        List<Result> results = new ArrayList<>();
+        while (!rest.isEmpty()) {
+            List<Box> connected = new ArrayList<>(List.of(rest.remove(0)));
+            boolean grew = true;
+            while (grew) {
+                grew = false;
+                for (Box candidate : new ArrayList<>(rest)) {
+                    if (connected.stream().anyMatch(candidate::linkedTo)) {
+                        connected.add(candidate); rest.remove(candidate); grew = true;
+                    }
+                }
+            }
+            double left = Math.max(0, connected.stream().mapToDouble(Box::left).min().orElseThrow());
+            double top = Math.max(0, connected.stream().mapToDouble(Box::top).min().orElseThrow());
+            double right = Math.min(1, connected.stream().mapToDouble(Box::right).max().orElseThrow());
+            double bottom = Math.min(1, connected.stream().mapToDouble(Box::bottom).max().orElseThrow());
+            if (right <= left || bottom <= top) continue;
+            results.add(new Result((right - left) * (bottom - top),
+                    left <= EDGE_MARGIN || top <= EDGE_MARGIN || right >= 1 - EDGE_MARGIN || bottom >= 1 - EDGE_MARGIN,
+                    (left + right) / 2, (top + bottom) / 2, left, top, right, bottom,
+                    connected.stream().mapToDouble(Box::confidence).max().orElseThrow()));
+        }
+        return results;
     }
 
     private static boolean centerInTarget(Box box) {

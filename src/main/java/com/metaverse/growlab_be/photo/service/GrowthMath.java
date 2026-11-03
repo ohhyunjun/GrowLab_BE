@@ -5,7 +5,9 @@ import com.metaverse.growlab_be.photo.service.PlantSeries.Observation;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /** 성장 추이 계산에 쓰는 순수 계산. */
 final class GrowthMath {
@@ -16,6 +18,9 @@ final class GrowthMath {
     private static final int MIN_RATE_SPAN_DAYS = 2;
     // 이보다 가까운 사진끼리는 비교하지 않는다. 몇 시간 간격의 작은 흔들림이 하루 성장률로 몇 배 부풀려진다.
     private static final double MIN_PAIR_GAP_DAYS = 20.0 / 24;
+
+    /** lowerBound=true means a clipped later photo proves at least this much growth. */
+    record RateEvidence(double ratePerDay, boolean lowerBound, long latestContributingDay) {}
 
     /**
      * 하루 성장률(%). 사진 두 장씩 찍힌 시각 차이로 로그 기울기를 구해 그 중앙값을 쓴다.
@@ -28,14 +33,18 @@ final class GrowthMath {
      * 한 묶음이라도 관측일이 3일 이상이고 처음과 끝이 이틀 이상 벌어져야 값을 낸다.
      */
     static Double ratePerDayPercent(List<List<Observation>> sameViewGroups) {
+        RateEvidence evidence = rateEvidence(sameViewGroups);
+        return evidence == null ? null : evidence.ratePerDay();
+    }
+
+    static RateEvidence rateEvidence(List<List<Observation>> sameViewGroups) {
         boolean enough = false;
+        boolean lowerBound = false;
+        long latestContributingDay = Long.MIN_VALUE;
         List<Double> slopes = new ArrayList<>();
         for (List<Observation> group : sameViewGroups) {
             if (group.isEmpty()) continue;
-            long firstDay = group.stream().mapToLong(Observation::elapsedDay).min().getAsLong();
-            long lastDay = group.stream().mapToLong(Observation::elapsedDay).max().getAsLong();
-            if (group.stream().mapToLong(Observation::elapsedDay).distinct().count() >= MIN_RATE_OBSERVATION_DAYS
-                    && lastDay - firstDay >= MIN_RATE_SPAN_DAYS) enough = true;
+            Set<Long> usableDays = new HashSet<>();
             for (int i = 0; i < group.size(); i++) {
                 for (int j = i + 1; j < group.size(); j++) {
                     double gapDays = Math.abs(Duration.between(group.get(i).shotAt(), group.get(j).shotAt())
@@ -43,13 +52,23 @@ final class GrowthMath {
                     if (gapDays < MIN_PAIR_GAP_DAYS) continue;
                     Observation earlier = group.get(i).shotAt().isBefore(group.get(j).shotAt()) ? group.get(i) : group.get(j);
                     Observation later = earlier == group.get(i) ? group.get(j) : group.get(i);
+                    // An earlier clipped size has no known baseline. A later clipped size
+                    // proves growth only when its visible portion already exceeds that baseline.
+                    if (earlier.cut() || (later.cut() && later.size() <= earlier.size())) continue;
                     slopes.add((Math.log(later.size()) - Math.log(earlier.size())) / gapDays);
+                    usableDays.add(earlier.elapsedDay());
+                    usableDays.add(later.elapsedDay());
+                    latestContributingDay = Math.max(latestContributingDay, later.elapsedDay());
+                    lowerBound |= later.cut();
                 }
             }
+            if (usableDays.size() >= MIN_RATE_OBSERVATION_DAYS
+                    && Collections.max(usableDays) - Collections.min(usableDays) >= MIN_RATE_SPAN_DAYS) enough = true;
         }
         if (!enough || slopes.isEmpty()) return null;
         Collections.sort(slopes);
-        return (Math.exp(percentile(slopes, 0.50)) - 1) * 100;
+        return new RateEvidence((Math.exp(percentile(slopes, 0.50)) - 1) * 100,
+                lowerBound, latestContributingDay);
     }
 
     /** 오름차순으로 정렬된 값의 분위수(0~1). 값 사이는 직선으로 잇는다. */

@@ -7,6 +7,43 @@ import static org.assertj.core.api.Assertions.within;
 
 class PlantExtentTest {
 
+    @Test
+    void 이전_식물이_화면_가로_25퍼센트_이동해도_전체_범위를_추적한다() {
+        PlantExtent.Tracker tracker = new PlantExtent.Tracker();
+        tracker.select("[{\"conf\":0.8,\"x\":0.5,\"y\":0.5,\"w\":0.2,\"h\":0.3}]", true, .6);
+        PlantExtent.Result moved = tracker.select("""
+                [{"conf":0.75,"x":0.75,"y":0.5,"w":0.2,"h":0.3},
+                 {"conf":0.99,"x":0.35,"y":0.85,"w":0.12,"h":0.12}]
+                """, true, .6);
+        assertThat(moved.centerX()).isCloseTo(.75, within(1e-9));
+        assertThat(moved.areaRatio()).isCloseTo(.06, within(1e-9));
+    }
+
+    @Test
+    void 중앙에_걸친_잎을_감싼_전체_박스는_중심이_28퍼센트_밖이어도_포함한다() {
+        PlantExtent.Result extent = PlantExtent.of("""
+                [{"conf":0.95,"x":0.31,"y":0.60,"w":0.08,"h":0.15},
+                 {"conf":0.86,"x":0.264,"y":0.691,"w":0.22,"h":0.332}]
+                """, true);
+        assertThat(extent.areaRatio()).isCloseTo(.22 * .332, within(.001));
+        assertThat(extent.left()).isLessThan(.28);
+    }
+
+    @Test
+    void 먼_곳의_일회성_검출에는_갈아타지_않고_같은_새_위치가_반복되면_받는다() {
+        PlantExtent.Tracker tracker = new PlantExtent.Tracker();
+        tracker.select("[{\"conf\":0.8,\"x\":0.35,\"y\":0.5,\"w\":0.1,\"h\":0.2}]", true, .6);
+        String far = "[{\"conf\":0.95,\"x\":0.8,\"y\":0.5,\"w\":0.1,\"h\":0.2}]";
+        assertThat(tracker.select(far, true, .6)).isNull();
+        assertThat(tracker.select(far, true, .6).centerX()).isCloseTo(.8, within(1e-9));
+    }
+
+    @Test
+    void 새_재배의_추적기는_이전_재배의_화면_가장자리_위치를_상속하지_않는다() {
+        assertThat(new PlantExtent.Tracker().select(
+                "[{\"conf\":0.99,\"x\":0.86,\"y\":0.45,\"w\":0.16,\"h\":0.2}]", true, .6)).isNull();
+    }
+
     // 운영 사진(2026-10-08 17:12, 1번 포트)의 실제 검출: 식물 박스들과, 타워 옆 방 배경을 잡은 큰 박스.
     private static final String PLANT_AND_BACKGROUND = """
             [{"cls":"Planting","conf":0.96,"x":0.248,"y":0.593,"w":0.268,"h":0.306},

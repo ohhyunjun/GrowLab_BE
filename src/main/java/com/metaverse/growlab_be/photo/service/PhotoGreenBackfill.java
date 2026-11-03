@@ -15,8 +15,11 @@ import org.springframework.stereotype.Component;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.HashMap;
+import java.util.Map;
 
 /** One-time, opt-in measurement of stored camera photos for historical comparisons. */
 @Component
@@ -25,6 +28,7 @@ import java.time.ZoneId;
 @Slf4j
 class PhotoGreenBackfill implements ApplicationRunner {
     private final PhotoRepository photos;
+    private final PhotoService photoService;
 
     @Value("${growth.green-backfill-limit:1000}")
     private int limit;
@@ -40,6 +44,7 @@ class PhotoGreenBackfill implements ApplicationRunner {
         int measured = 0;
         int pageNumber = 0;
         Page<Photo> page;
+        Map<String, Map<Long, PlantExtent.Result>> targetCache = new HashMap<>();
         do {
             page = photos.findAll(PageRequest.of(pageNumber++, 100, Sort.by("id")));
             for (Photo photo : page.getContent()) {
@@ -49,17 +54,24 @@ class PhotoGreenBackfill implements ApplicationRunner {
                 }
                 boolean wideCamera = isWideCamera(photo);
                 double minConfidence = PhotoService.minimumGrowthConfidence(wideCamera);
-                if (photo.getGreenAreaRatio() != null || photo.getConfidence() == null
+                if (photo.getConfidence() == null
                         || photo.getConfidence() < minConfidence
                         || "no_detection".equalsIgnoreCase(photo.getGrowthStageResult())) continue;
-                PlantExtent.Result extent = PlantExtent.of(photo.getDetectionsJson(), wideCamera);
+                Map<Long, PlantExtent.Result> targets = targetCache.computeIfAbsent(photo.getDevice().getId(), serial -> {
+                    Map<Long, PlantExtent.Result> byId = new HashMap<>();
+                    photoService.measurementTargets(photo.getDevice()).forEach((p, target) -> byId.put(p.getId(), target));
+                    return byId;
+                });
+                PlantExtent.Result extent = targets.get(photo.getId());
                 if (extent == null || extent.confidence() < minConfidence) continue;
+                String region = PlantExtent.regionKey(extent);
+                if (photo.getGreenAreaRatio() != null && region.equals(photo.getGreenAreaRegion())) continue;
                 String filePath = photo.getFilePath();
-                if (filePath == null || filePath.isBlank() || filePath.startsWith("https://")) continue;
-                try (var input = Files.newInputStream(Path.of(filePath))) {
+                if (filePath == null || filePath.isBlank()) continue;
+                try (InputStream input = Files.newInputStream(Path.of(filePath))) {
                     Double ratio = GreenCoverage.frameRatio(input, extent);
                     if (ratio == null) continue;
-                    photo.recordGreenAreaRatio(ratio);
+                    photo.recordGreenAreaRatio(ratio, region);
                     photos.save(photo);
                     measured++;
                 } catch (Exception ex) {

@@ -45,6 +45,37 @@ class PlantSeriesTest {
     }
 
     @Test
+    void 위쪽_잎이_박스에서_빠져도_고정된_포트의_비교_구간을_유지한다() {
+        List<Observation> observations = List.of(
+                at(1, 18, .45, .49038, .54598),
+                at(2, 2, .49, .50631, .56486),
+                at(2, 17, .58, .50000, .45913),
+                at(2, 21, .57, .51623, .44151),
+                at(3, 8, .63, .50240, .41587),
+                at(3, 14, .55, .51352, .56050),
+                at(3, 15, .61, .51052, .48638));
+
+        PlantSeries series = PlantSeries.of(observations);
+
+        assertThat(series.lastViewChangeDay()).isNull();
+        assertThat(series.latestViewDaily(1, 3)).containsOnlyKeys(1L, 2L, 3L);
+    }
+
+    @Test
+    void 다음_박스가_이전_중심에도_가까우면_포트_이동으로_보지_않는다() {
+        List<Observation> observations = List.of(
+                at(1, 12, .10, .50, .40),
+                at(2, 6, .12, .50, .60),
+                at(2, 12, .13, .50, .49),
+                at(3, 12, .14, .50, .40));
+
+        PlantSeries series = PlantSeries.of(observations);
+
+        assertThat(series.lastViewChangeDay()).isNull();
+        assertThat(series.daily().get(2L)).isEqualTo(.13);
+    }
+
+    @Test
     void 한_장만_동떨어진_자리에_찍힌_박스는_버린다() {
         List<Observation> observations = List.of(
                 at(1, 12, 0.10, 0.30, 0.65), at(2, 12, 0.11, 0.30, 0.65),

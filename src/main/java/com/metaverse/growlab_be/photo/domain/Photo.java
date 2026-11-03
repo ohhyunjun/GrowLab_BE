@@ -59,6 +59,9 @@ public class Photo extends TimeStamped {
     @Column(name = "green_area_ratio", nullable = true)
     private Double greenAreaRatio; // 대상 포트 식물 박스 안의 녹색 픽셀 / 전체 프레임 면적
 
+    @Column(name = "green_area_region", length = 160)
+    private String greenAreaRegion; // 녹색 면적을 계산한 범위와 측정 규칙. 과거 행은 null로 보존.
+
     // ── 검출된 전체 박스 원본. 정규화 좌표(xywhn) 기준 JSON 배열: [{cls, conf, x, y, w, h}, ...]
     //    대표 박스 선택 규칙(현재: 최대 면적)이 나중에 바뀌어도 재검증할 수 있게 전부 남긴다.
     @Column(columnDefinition = "TEXT")
@@ -121,5 +124,11 @@ public class Photo extends TimeStamped {
     public void recordGreenAreaRatio(double ratio) {
         if (!Double.isFinite(ratio) || ratio < 0 || ratio > 1) throw new IllegalArgumentException("Invalid green area ratio");
         this.greenAreaRatio = ratio;
+        this.greenAreaRegion = null;
+    }
+
+    public void recordGreenAreaRatio(double ratio, String region) {
+        recordGreenAreaRatio(ratio);
+        this.greenAreaRegion = region;
     }
 }

@@ -26,6 +26,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -102,23 +103,23 @@ public class PhotoService {
         boolean wideCamera = isWideCamera(dto.getSerialNumber(), photoTime);
         double minConfidence = minimumGrowthConfidence(wideCamera);
         Double greenAreaRatio = null;
+        PlantExtent.Result measuredTarget = null;
         if (dto.getGrowthConfidence() != null && dto.getGrowthConfidence() >= minConfidence
                 && !"no_detection".equalsIgnoreCase(dto.getGrowthResult())) {
             try {
-                PlantExtent.Result target = PlantExtent.of(dto.getDetectionsJson(), wideCamera);
-                if (target != null && target.confidence() >= minConfidence)
-                    greenAreaRatio = GreenCoverage.frameRatio(imageFile, target);
+                measuredTarget = targetForUpload(device, dto, photoTime, capturePlant);
+                if (measuredTarget != null && measuredTarget.confidence() >= minConfidence)
+                    greenAreaRatio = GreenCoverage.frameRatio(imageFile, measuredTarget);
             } catch (IOException | RuntimeException ex) {
                 log.warn("Could not measure green coverage for port {}", dto.getPortIndex(), ex);
             }
         }
         File directory = new File(uploadDir);
         if (!directory.exists()) directory.mkdirs();
-
         String extension = getFileExtension(imageFile.getOriginalFilename());
-        String fileName  = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
+        String fileName = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
                 + "_" + UUID.randomUUID() + (extension.isEmpty() ? "" : "." + extension);
-        String filePath  = Paths.get(uploadDir, fileName).toString();
+        String filePath = Paths.get(uploadDir, fileName).toString();
         imageFile.transferTo(new File(filePath));
 
         String  growthResult  = dto.getGrowthResult()      != null ? dto.getGrowthResult()      : "no_detection";
@@ -133,6 +134,8 @@ public class PhotoService {
                 dto.getBoxWidth(), dto.getBoxHeight(), dto.getBoxArea(), dto.getBoxAreaRatio(),
                 dto.getDetectionsJson(), dto.getSelectedBoxIndex(), greenAreaRatio
         );
+        if (greenAreaRatio != null)
+            photo.recordGreenAreaRatio(greenAreaRatio, PlantExtent.regionKey(measuredTarget));
         if(edge) photo.bindCapture(dto.getPlantId(),capturedAt,dto.getObservationId());
         Photo savedPhoto=photoRepository.save(photo);
         if(edge) {
@@ -172,7 +175,8 @@ public class PhotoService {
      * 기존 카메라는 신뢰도 70%, 광각 카메라는 중앙 포트 박스 신뢰도 60% 이상인 사진만 쓴다.
      * 녹색 픽셀을 측정한 구간은 박스와 녹색 면적을 합친
      * 시각적 크기 지표를 사용하고, 이전 사진은 박스만 쓰되 서로 다른 지표를 속도 비교에 섞지 않는다.
-     * 화면 밖으로 잘린 사진은 크기의 하한으로 남기고 정확한 속도에는 쓰지 않는다.
+     * 화면 밖으로 잘린 사진은 크기의 하한으로 남기고, 이전의 정확한 사진보다
+     * 보이는 면적만으로도 커졌을 때는 성장 속도의 하한으로 쓴다.
      * 그래프에는 그날 사진의 중앙값을 하루 값으로 쓰고, 성장 속도는 사진 하나하나를 찍힌 시각으로
      * 비교해 구한다. 포트를 옮겨 찍히는 자리가 바뀐 경우의 처리는 {@link PlantSeries} 참고.
      *
@@ -198,6 +202,7 @@ public class PhotoService {
         }
 
         List<Photo> photos = photoRepository.findByDeviceAndBoxAreaRatioIsNotNullOrderByCreatedAtAsc(device);
+        Map<Photo, PlantExtent.Result> targets = trackedTargets(photos, plantByPort, endedByPort);
         Plant selfPlant = plantByPort.get(portIndex);
 
         // 식물 -> 관측 목록. 빈 포트와 파종 전 사진은 제외한다.
@@ -213,7 +218,7 @@ public class PhotoService {
                     || p.getGrowthStageResult() == null
                     || "no_detection".equalsIgnoreCase(p.getGrowthStageResult())) continue;
             // 검출 목록이 저장되지 않은 옛 사진만 저장된 최대 면적 박스를 그대로 쓴다.
-            PlantExtent.Result extent = PlantExtent.of(p.getDetectionsJson(), wideCamera);
+            PlantExtent.Result extent = targets.get(p);
             // A high-confidence detection of a neighboring port must not become this port's size.
             if (extent == null && p.getDetectionsJson() != null && !p.getDetectionsJson().isBlank()) continue;
             if (extent != null && extent.confidence() < minConfidence) continue;
@@ -226,7 +231,7 @@ public class PhotoService {
             if (elapsed < 0) continue;
             double boxRatio = extent != null ? extent.areaRatio() : p.getBoxAreaRatio();
             if (!Double.isFinite(boxRatio) || boxRatio <= 0 || boxRatio > 1) continue;
-            Double greenRatio = p.getGreenAreaRatio();
+            Double greenRatio = compatibleGreenRatio(p, extent, wideCamera);
             if (VisualSizeIndex.combine(boxRatio, greenRatio) == null) greenRatio = null;
             observed.computeIfAbsent(owner, k -> new ArrayList<>()).add(new PlantSeries.Observation(
                     shotAt(p), elapsed, boxRatio, extent != null && extent.cut(),
@@ -242,8 +247,8 @@ public class PhotoService {
             PlantSeries combined = PlantSeries.of(e.getValue(), PlantSeries.Measurement.BOX_GREEN);
             // Only switch an entire series when at least two days of combined observations exist.
             // Do not splice a new metric onto the old box-only graph.
-            PlantSeries series = combined.daily().size() >= 2 && !box.daily().isEmpty()
-                    && combined.daily().lastKey().equals(box.daily().lastKey()) ? combined : box;
+            PlantSeries series = combined.daily().size() >= 2
+                    && combined.daily().keySet().equals(box.daily().keySet()) ? combined : box;
             if (!series.daily().isEmpty()) seriesByPlant.put(e.getKey(), series);
         }
         // 활성 포트 -> (경과일 -> 그날의 크기)
@@ -301,6 +306,71 @@ public class PhotoService {
                 sizeChangeOf(selfSeries), growthRateOf(selfSeries), reference, selfSeries.lastViewChangeDay());
     }
 
+    /** Replay the same per-cultivation selection for uploads, graphs and optional historical repair. */
+    private Map<Photo, PlantExtent.Result> trackedTargets(List<Photo> photos,
+            Map<Integer, Plant> active, Map<Integer, List<Plant>> ended) {
+        Map<Plant, PlantExtent.Tracker> trackers = new IdentityHashMap<>();
+        Map<Photo, PlantExtent.Result> targets = new IdentityHashMap<>();
+        photos.stream().filter(p -> p.getCreatedAt() != null && p.getPortIndex() != null)
+                .sorted(Comparator.comparing(PhotoService::shotAt)
+                        .thenComparing(Photo::getId, Comparator.nullsFirst(Comparator.naturalOrder())))
+                .forEach(photo -> {
+                    boolean wide = cameraEpoch(photo) > 0;
+                    double minimum = minimumGrowthConfidence(wide);
+                    if (photo.getConfidence() == null || photo.getConfidence() < minimum
+                            || photo.getGrowthStageResult() == null
+                            || "no_detection".equalsIgnoreCase(photo.getGrowthStageResult())) return;
+                    Plant owner = ownerOf(photo, active, ended);
+                    if (owner == null) return;
+                    PlantExtent.Result extent = trackers.computeIfAbsent(owner, key -> new PlantExtent.Tracker())
+                            .select(photo.getDetectionsJson(), wide, minimum);
+                    if (extent != null) targets.put(photo, extent);
+                });
+        return targets;
+    }
+
+    Map<Photo, PlantExtent.Result> measurementTargets(Device device) {
+        Map<Integer, Plant> active = new HashMap<>();
+        plantRepository.findByDeviceIdAndEndedAtIsNull(device.getId()).forEach(p -> active.put(p.getPortIndex(), p));
+        Map<Integer, List<Plant>> ended = new HashMap<>();
+        plantRepository.findByDeviceIdAndEndedAtIsNotNull(device.getId()).forEach(p ->
+                ended.computeIfAbsent(p.getPortIndex(), key -> new ArrayList<>()).add(p));
+        return trackedTargets(photoRepository.findByDeviceAndBoxAreaRatioIsNotNullOrderByCreatedAtAsc(device), active, ended);
+    }
+
+    private PlantExtent.Result targetForUpload(Device device, PhotoRequestDto dto,
+                                               LocalDateTime photoTime, Plant capturePlant) {
+        boolean wide = isWideCamera(device.getId(), photoTime);
+        double minimum = minimumGrowthConfidence(wide);
+        Plant owner = capturePlant != null ? capturePlant : plantRepository
+                .findByDeviceIdAndPortIndexAndEndedAtIsNull(device.getId(), dto.getPortIndex()).orElse(null);
+        PlantExtent.Tracker tracker = new PlantExtent.Tracker();
+        if (owner != null) {
+            Map<Integer, Plant> active = Map.of(dto.getPortIndex(), owner);
+            photoRepository.findTop100ByDeviceAndPortIndexOrderByCreatedAtDesc(device, dto.getPortIndex()).stream()
+                    .filter(p -> p.getCreatedAt() != null && !shotAt(p).isAfter(photoTime))
+                    .sorted(Comparator.comparing(PhotoService::shotAt)
+                            .thenComparing(Photo::getId, Comparator.nullsFirst(Comparator.naturalOrder())))
+                    .filter(p -> ownerOf(p, active, Map.of()) == owner)
+                    .filter(p -> p.getConfidence() != null && p.getConfidence() >= minimumGrowthConfidence(cameraEpoch(p) > 0)
+                            && p.getGrowthStageResult() != null && !"no_detection".equalsIgnoreCase(p.getGrowthStageResult()))
+                    .forEach(p -> tracker.select(p.getDetectionsJson(), cameraEpoch(p) > 0,
+                            minimumGrowthConfidence(cameraEpoch(p) > 0)));
+        }
+        return tracker.select(dto.getDetectionsJson(), wide, minimum);
+    }
+
+    static Double compatibleGreenRatio(Photo photo, PlantExtent.Result extent, boolean wide) {
+        if (photo.getGreenAreaRatio() == null) return null;
+        if (photo.getGreenAreaRegion() != null)
+            return photo.getGreenAreaRegion().equals(PlantExtent.regionKey(extent)) ? photo.getGreenAreaRatio() : null;
+        // Old green measurements are usable only when their original region is still the selected region.
+        if (extent == null && !wide && (photo.getDetectionsJson() == null || photo.getDetectionsJson().isBlank()))
+            return photo.getGreenAreaRatio();
+        return PlantExtent.sameRegion(extent, PlantExtent.legacyOf(photo.getDetectionsJson(), wide))
+                ? photo.getGreenAreaRatio() : null;
+    }
+
     // 사진이 찍힌 시각에 그 포트에 있던 식물. 종료된 재배는 [파종, 종료) 구간으로, 재배 중인 식물은 파종일 이후로 판정한다.
     private static LocalDateTime shotAt(Photo photo) {
         return photo.getCapturedAt() == null ? photo.getCreatedAt()
@@ -333,7 +403,7 @@ public class PhotoService {
             if (!shotAt.isBefore(ended.getPlantedAt()) && shotAt.isBefore(ended.getEndedAt())) return ended;
         }
         Plant active = plantByPort.get(photo.getPortIndex());
-        if (active == null || shotAt.toLocalDate().isBefore(active.getPlantedAt().toLocalDate())) return null;
+        if (active == null || shotAt.isBefore(active.getPlantedAt())) return null;
         return active;
     }
 
@@ -364,10 +434,12 @@ public class PhotoService {
 
     private GrowthTrendResponseDto.GrowthRate growthRateOf(PlantSeries self) {
         long latestDay = self.daily().lastKey();
-        if (!self.hasExactPhoto(latestDay)) return GrowthTrendResponseDto.GrowthRate.pending();
         List<PlantSeries.Observation> recent = self.latestViewPhotos(latestDay - RATE_WINDOW_DAYS + 1, latestDay);
-        Double rate = GrowthMath.ratePerDayPercent(List.of(recent));
-        if (rate == null) return GrowthTrendResponseDto.GrowthRate.pending();
+        GrowthMath.RateEvidence evidence = GrowthMath.rateEvidence(List.of(recent));
+        if (evidence == null || evidence.latestContributingDay() != latestDay
+                || (evidence.lowerBound() && evidence.ratePerDay() < RATE_FLAT_BAND))
+            return GrowthTrendResponseDto.GrowthRate.pending();
+        double rate = evidence.ratePerDay();
 
         Double previous = GrowthMath.ratePerDayPercent(self.sameViewPhotos(
                 latestDay - 2L * RATE_WINDOW_DAYS + 1, latestDay - RATE_WINDOW_DAYS));
@@ -377,7 +449,8 @@ public class PhotoService {
         else status = "growing";
         return new GrowthTrendResponseDto.GrowthRate(round1(rate), previous != null ? round1(previous) : null,
                 status, (int) recent.stream().mapToLong(PlantSeries.Observation::elapsedDay).distinct().count(),
-                (int) (recent.get(recent.size() - 1).elapsedDay() - recent.get(0).elapsedDay()));
+                (int) (recent.get(recent.size() - 1).elapsedDay() - recent.get(0).elapsedDay()),
+                evidence.lowerBound());
     }
 
     // ── 3) 같은 시기의 속도 비교 ───────────────────────────────────
@@ -395,10 +468,10 @@ public class PhotoService {
         PlantSeries own = self == null ? null : seriesByPlant.get(self);
         if (own == null || self.getSpecies() == null || self.getSpecies().getId() == null) return null;
         long latestDay = own.daily().lastKey();
-        if (!own.hasExactPhoto(latestDay)) return null;
         long fromDay = latestDay - RATE_WINDOW_DAYS + 1;
-        Double ownRate = GrowthMath.ratePerDayPercent(List.of(own.latestViewPhotos(fromDay, latestDay)));
-        if (ownRate == null) return null;
+        GrowthMath.RateEvidence ownEvidence = GrowthMath.rateEvidence(List.of(own.latestViewPhotos(fromDay, latestDay)));
+        if (ownEvidence == null || ownEvidence.latestContributingDay() != latestDay) return null;
+        double ownRate = ownEvidence.ratePerDay();
 
         List<Double> rates = new ArrayList<>();
         List<Integer> portIndices = new ArrayList<>();
@@ -408,9 +481,10 @@ public class PhotoService {
                     || other.getSpecies() == null
                     || !self.getSpecies().getId().equals(other.getSpecies().getId())) continue;
             if (entry.getValue().measurement() != own.measurement()) continue;
-            Double rate = GrowthMath.ratePerDayPercent(entry.getValue().sameViewPhotos(fromDay, latestDay));
-            if (rate != null) {
-                rates.add(rate);
+            GrowthMath.RateEvidence peerEvidence = GrowthMath.rateEvidence(entry.getValue().sameViewPhotos(fromDay, latestDay));
+            // A peer's lower-bound rate cannot be used as an exact comparison baseline.
+            if (peerEvidence != null && !peerEvidence.lowerBound()) {
+                rates.add(peerEvidence.ratePerDay());
                 portIndices.add(other.getPortIndex());
             }
         }
@@ -422,6 +496,9 @@ public class PhotoService {
         // 다른 기록들의 범위를 벗어나고 중앙값과도 뚜렷이 벌어졌을 때만 빠르다·느리다고 한다.
         String verdict = ownRate < low && ownRate <= median - RATE_SIMILAR_BAND ? "slower"
                 : ownRate > high && ownRate >= median + RATE_SIMILAR_BAND ? "faster" : "similar";
+        // A clipped latest observation gives only a minimum rate. It can prove
+        // faster growth, but cannot establish similar or slower growth.
+        if (ownEvidence.lowerBound() && !"faster".equals(verdict)) return null;
         return new RateReference(median, low, high, rates.size(), verdict, List.copyOf(portIndices));
     }
 

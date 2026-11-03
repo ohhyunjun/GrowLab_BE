@@ -35,6 +35,40 @@ class PhotoServiceGrowthTrendTest {
     private PhotoService photoService;
     private Device device;
 
+    @Test
+    void 전체_박스가_왼쪽으로_움직여도_잎_일부의_과거_녹색값으로_급락시키지_않는다() {
+        ReflectionTestUtils.setField(photoService, "cameraChangeSerial", SERIAL);
+        ReflectionTestUtils.setField(photoService, "cameraChangeAt", "2026-10-19T18:00:00");
+        LocalDateTime planted = LocalDateTime.of(2026, 10, 14, 17, 21);
+        givenPlants(port(1, planted));
+        Photo before = photoWithDetections(1, planted.plusDays(13), .0678, """
+                [{"conf":0.92,"x":0.313,"y":0.667,"w":0.20,"h":0.338},
+                 {"conf":0.86,"x":0.369,"y":0.575,"w":0.078,"h":0.148}]
+                """);
+        Photo after = photoWithDetections(1, planted.plusDays(14), .073, """
+                [{"conf":0.96,"x":0.31,"y":0.60,"w":0.08,"h":0.156},
+                 {"conf":0.86,"x":0.264,"y":0.691,"w":0.22,"h":0.332}]
+                """);
+        doReturn(.009).when(after).getGreenAreaRatio(); // Old count from the tiny leaf region.
+        givenPhotos(before, after);
+        var trend = photoService.getGrowthTrend(SERIAL, 1);
+        assertThat(trend.getPoints()).hasSize(2);
+        assertThat(trend.getPoints().get(1).getValue()).isGreaterThan(.07);
+        assertThat(trend.getMeasurement()).isEqualTo("box");
+        assertThat(trend.getLatestGreenRatio()).isNull();
+    }
+
+    @Test
+    void 새_범위와_다른_영역에서_계산한_녹색_값은_사용하지_않는다() {
+        Photo photo = mock(Photo.class);
+        when(photo.getGreenAreaRatio()).thenReturn(.009);
+        when(photo.getGreenAreaRegion()).thenReturn("tracked-v2:0.1,0.1,0.2,0.2");
+        var target = PlantExtent.of("[{\"conf\":0.9,\"x\":0.5,\"y\":0.5,\"w\":0.2,\"h\":0.3}]", true);
+        assertThat(PhotoService.compatibleGreenRatio(photo, target, true)).isNull();
+        when(photo.getGreenAreaRegion()).thenReturn(PlantExtent.regionKey(target));
+        assertThat(PhotoService.compatibleGreenRatio(photo, target, true)).isEqualTo(.009);
+    }
+
     @BeforeEach
     void setUp() {
         photoRepository = mock(PhotoRepository.class);
@@ -233,6 +267,51 @@ class PhotoServiceGrowthTrendTest {
         assertThat(trend.getSizeChange().isReady()).isTrue();
         assertThat(trend.getSizeChange().isLowerBound()).isTrue();
         assertThat(trend.getSizeChange().getChangePercent()).isEqualTo(15.8);
+    }
+
+    @Test
+    void 잘린_최신_사진도_확인된_최소_속도로_다른_포트와_비교한다() {
+        givenPlants(port(0, BASE), port(1, BASE));
+        givenPhotos(
+                photoWithDetections(0, BASE.plusDays(3), .10,
+                        "[{\"conf\":0.9,\"x\":0.5,\"y\":0.5,\"w\":0.4,\"h\":0.25}]"),
+                photoWithDetections(0, BASE.plusDays(4), .12,
+                        "[{\"conf\":0.9,\"x\":0.5,\"y\":0.5,\"w\":0.4,\"h\":0.3}]"),
+                photoWithDetections(0, BASE.plusDays(5), .24,
+                        "[{\"conf\":0.9,\"x\":0.5,\"y\":0.5,\"w\":1.0,\"h\":0.24}]"),
+                photo(1, BASE.plusDays(3), .10),
+                photo(1, BASE.plusDays(4), .105),
+                photo(1, BASE.plusDays(5), .11));
+
+        GrowthTrendResponseDto trend = photoService.getGrowthTrend(SERIAL, 0);
+
+        assertThat(trend.isLatestLowerBound()).isTrue();
+        assertThat(trend.getGrowthRate().isLowerBound()).isTrue();
+        assertThat(trend.getReference().isReady()).isTrue();
+        assertThat(trend.getReference().getVerdict()).isEqualTo("faster");
+    }
+
+    @Test
+    void 잘린_최신_사진의_보이는_면적이_줄면_느리다는_판정을_내지_않는다() {
+        givenPlants(port(0, BASE), port(1, BASE));
+        givenPhotos(
+                photoWithDetections(0, BASE.plusDays(3), .10,
+                        "[{\"conf\":0.9,\"x\":0.5,\"y\":0.5,\"w\":0.4,\"h\":0.25}]"),
+                photoWithDetections(0, BASE.plusDays(4), .12,
+                        "[{\"conf\":0.9,\"x\":0.5,\"y\":0.5,\"w\":0.4,\"h\":0.3}]"),
+                photoWithDetections(0, BASE.plusDays(5), .14,
+                        "[{\"conf\":0.9,\"x\":0.5,\"y\":0.5,\"w\":0.4,\"h\":0.35}]"),
+                photoWithDetections(0, BASE.plusDays(6), .08,
+                        "[{\"conf\":0.9,\"x\":0.5,\"y\":0.5,\"w\":1.0,\"h\":0.08}]"),
+                photo(1, BASE.plusDays(3), .10),
+                photo(1, BASE.plusDays(4), .105),
+                photo(1, BASE.plusDays(5), .11),
+                photo(1, BASE.plusDays(6), .115));
+
+        GrowthTrendResponseDto trend = photoService.getGrowthTrend(SERIAL, 0);
+
+        assertThat(trend.isLatestLowerBound()).isTrue();
+        assertThat(trend.getReference().isReady()).isFalse();
     }
 
     @Test
