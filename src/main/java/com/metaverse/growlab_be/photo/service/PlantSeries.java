@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 /**
  * 식물 한 개체의 관측을 경과일별 크기로 정리한다.
@@ -22,43 +23,85 @@ import java.util.TreeMap;
  */
 final class PlantSeries {
 
+    enum Measurement { BOX, BOX_GREEN }
+
     /** centerX/Y: 화면에서 식물 범위의 중심(0~1). 검출 목록이 없는 옛 사진은 null. */
     record Observation(LocalDateTime shotAt, long elapsedDay, double size, boolean cut,
-                       Double centerX, Double centerY) {}
+                       Double centerX, Double centerY, double boxRatio, Double greenRatio,
+                       int cameraEpoch) {
+        Observation(LocalDateTime shotAt, long elapsedDay, double size, boolean cut,
+                    Double centerX, Double centerY) {
+            this(shotAt, elapsedDay, size, cut, centerX, centerY, size, null, 0);
+        }
 
-    // 식물 중심이 화면의 이 비율 이상 옮겨 가면 위치가 바뀐 것으로 본다. 같은 자리에서는 대부분 6% 안에서 움직인다.
-    static final double VIEW_SHIFT = 0.10;
+        Observation withSize(double newSize) {
+            return new Observation(shotAt, elapsedDay, newSize, cut, centerX, centerY,
+                    boxRatio, greenRatio, cameraEpoch);
+        }
+    }
+
+    // 잎 일부가 검출 박스에서 빠져도 중심이 움직일 수 있으므로 15% 이내는 같은 촬영 위치로 본다.
+    static final double VIEW_SHIFT = 0.15;
     // 현재 위치의 기준은 최근 관측 몇 장의 중심 중앙값이다. 식물이 자라며 중심이 천천히 옮겨 가는 것은 따라간다.
     private static final int VIEW_MEMORY = 6;
 
     private final TreeMap<Long, Double> daily = new TreeMap<>();
+    private final TreeMap<Long, Double> boxDaily = new TreeMap<>();
+    private final TreeMap<Long, Double> greenDaily = new TreeMap<>();
+    private final TreeMap<Long, Boolean> lowerBoundByDay = new TreeMap<>();
     private final Map<Long, Integer> viewByDay = new HashMap<>();
-    // 경과일 -> 그날 값에 들어간 사진들(잘리지 않은 것). 성장 속도 계산에 쓴다.
+    // 경과일 -> 그날 값에 들어간 사진들. 잘린 사진도 확인된 성장의 하한으로 쓴다.
     private final TreeMap<Long, List<Observation>> photosByDay = new TreeMap<>();
+    private final TreeSet<Long> exactPhotoDays = new TreeSet<>();
     private Long lastViewChangeDay;
+    private Measurement measurement = Measurement.BOX;
 
     private PlantSeries() {}
 
     static PlantSeries of(List<Observation> observations) {
-        List<Observation> ordered = new ArrayList<>(observations);
+        return of(observations, Measurement.BOX);
+    }
+
+    static PlantSeries of(List<Observation> observations, Measurement measurement) {
+        List<Observation> ordered = new ArrayList<>();
+        for (Observation observation : observations) {
+            if (measurement == Measurement.BOX) ordered.add(observation);
+            else {
+                Double combined = VisualSizeIndex.combine(observation.boxRatio(), observation.greenRatio());
+                if (combined != null) ordered.add(observation.withSize(combined));
+            }
+        }
         ordered.sort(Comparator.comparing(Observation::shotAt));
 
         PlantSeries series = new PlantSeries();
+        series.measurement = measurement;
         // 경과일 -> 그날 마지막으로 본 위치의 관측들
         TreeMap<Long, List<Observation>> byDay = new TreeMap<>();
         Map<Long, Integer> lastViewOfDay = new HashMap<>();
         List<double[]> recentCenters = new ArrayList<>();
         int view = 0;
+        Integer lastCameraEpoch = null;
         for (int i = 0; i < ordered.size(); i++) {
             Observation o = ordered.get(i);
-            if (o.centerX() != null && !recentCenters.isEmpty()
-                    && distance(o, median(recentCenters, 0), median(recentCenters, 1)) > VIEW_SHIFT) {
-                Observation next = nextWithCenter(ordered, i + 1);
-                // 다음 사진도 새 자리에 있어야 옮긴 것으로 본다. 한 장만 동떨어져 있으면 엉뚱한 박스로 보고 버린다.
-                if (next != null && distance(next, o.centerX(), o.centerY()) > VIEW_SHIFT) continue;
+            if (lastCameraEpoch != null && o.cameraEpoch() != lastCameraEpoch) {
                 view++;
                 recentCenters.clear();
                 series.lastViewChangeDay = o.elapsedDay();
+            }
+            lastCameraEpoch = o.cameraEpoch();
+            if (o.centerX() != null && !recentCenters.isEmpty()
+                    && distance(o, median(recentCenters, 0), median(recentCenters, 1)) > VIEW_SHIFT) {
+                double oldCenterX = median(recentCenters, 0);
+                double oldCenterY = median(recentCenters, 1);
+                Observation next = nextWithCenter(ordered, i + 1, o.cameraEpoch());
+                // 다음 사진도 새 중심에 가깝고 이전 중심에서 멀어야 실제 위치 변경으로 본다.
+                if (next != null) {
+                    if (distance(next, o.centerX(), o.centerY()) > VIEW_SHIFT
+                            || distance(next, oldCenterX, oldCenterY) <= VIEW_SHIFT) continue;
+                    view++;
+                    recentCenters.clear();
+                    series.lastViewChangeDay = o.elapsedDay();
+                }
             }
             if (o.centerX() != null) {
                 recentCenters.add(new double[]{o.centerX(), o.centerY()});
@@ -72,22 +115,45 @@ final class PlantSeries {
         for (Map.Entry<Long, List<Observation>> day : byDay.entrySet()) {
             List<Observation> whole = new ArrayList<>();
             for (Observation o : day.getValue()) if (!o.cut()) whole.add(o);
-            int cut = day.getValue().size() - whole.size();
-            // 그날 사진의 절반 이상에서 식물이 화면 밖으로 잘렸으면 나머지 값도 믿기 어려워 그날은 비운다.
-            if (whole.isEmpty() || cut >= whole.size()) continue;
+            // 화면 끝에 닿은 사진도 관측된 크기와 성장 속도의 하한을 제공한다.
             List<Double> sizes = new ArrayList<>();
-            for (Observation o : whole) sizes.add(o.size());
+            List<Double> boxes = new ArrayList<>();
+            List<Double> greens = new ArrayList<>();
+            boolean lowerBound = false;
+            for (Observation o : day.getValue()) {
+                sizes.add(o.size());
+                boxes.add(o.boxRatio());
+                if (o.greenRatio() != null) greens.add(o.greenRatio());
+                lowerBound |= o.cut();
+            }
+            if (sizes.isEmpty()) continue;
             Collections.sort(sizes);
+            Collections.sort(boxes);
+            Collections.sort(greens);
             // 그래프에 찍는 하루 값. 잎만 잡힌 한 장이 끌어내리지 않게 평균이 아니라 중앙값을 쓴다.
             series.daily.put(day.getKey(), GrowthMath.percentile(sizes, 0.50));
+            series.boxDaily.put(day.getKey(), GrowthMath.percentile(boxes, 0.50));
+            if (!greens.isEmpty()) series.greenDaily.put(day.getKey(), GrowthMath.percentile(greens, 0.50));
+            series.lowerBoundByDay.put(day.getKey(), lowerBound);
             series.viewByDay.put(day.getKey(), lastViewOfDay.get(day.getKey()));
-            series.photosByDay.put(day.getKey(), whole);
+            series.photosByDay.put(day.getKey(), List.copyOf(day.getValue()));
+            if (!whole.isEmpty()) series.exactPhotoDays.add(day.getKey());
         }
         return series;
     }
 
     /** 경과일 -> 그날의 크기. */
     TreeMap<Long, Double> daily() { return daily; }
+
+    Measurement measurement() { return measurement; }
+
+    Double boxRatio(long day) { return boxDaily.get(day); }
+
+    Double greenRatio(long day) { return greenDaily.get(day); }
+
+    boolean isLowerBound(long day) { return lowerBoundByDay.getOrDefault(day, false); }
+
+    boolean hasExactPhoto(long day) { return exactPhotoDays.contains(day); }
 
     /** 지금 보는 위치가 시작된 경과일. 위치가 한 번도 바뀌지 않았으면 null. */
     Long lastViewChangeDay() { return lastViewChangeDay; }
@@ -119,8 +185,9 @@ final class PlantSeries {
         return groups.isEmpty() ? List.of() : groups.get(groups.size() - 1);
     }
 
-    private static Observation nextWithCenter(List<Observation> ordered, int from) {
+    private static Observation nextWithCenter(List<Observation> ordered, int from, int cameraEpoch) {
         for (int i = from; i < ordered.size(); i++) {
+            if (ordered.get(i).cameraEpoch() != cameraEpoch) return null;
             if (ordered.get(i).centerX() != null) return ordered.get(i);
         }
         return null;

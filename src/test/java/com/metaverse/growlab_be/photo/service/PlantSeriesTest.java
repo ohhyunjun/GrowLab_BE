@@ -45,6 +45,37 @@ class PlantSeriesTest {
     }
 
     @Test
+    void 위쪽_잎이_박스에서_빠져도_고정된_포트의_비교_구간을_유지한다() {
+        List<Observation> observations = List.of(
+                at(1, 18, .45, .49038, .54598),
+                at(2, 2, .49, .50631, .56486),
+                at(2, 17, .58, .50000, .45913),
+                at(2, 21, .57, .51623, .44151),
+                at(3, 8, .63, .50240, .41587),
+                at(3, 14, .55, .51352, .56050),
+                at(3, 15, .61, .51052, .48638));
+
+        PlantSeries series = PlantSeries.of(observations);
+
+        assertThat(series.lastViewChangeDay()).isNull();
+        assertThat(series.latestViewDaily(1, 3)).containsOnlyKeys(1L, 2L, 3L);
+    }
+
+    @Test
+    void 다음_박스가_이전_중심에도_가까우면_포트_이동으로_보지_않는다() {
+        List<Observation> observations = List.of(
+                at(1, 12, .10, .50, .40),
+                at(2, 6, .12, .50, .60),
+                at(2, 12, .13, .50, .49),
+                at(3, 12, .14, .50, .40));
+
+        PlantSeries series = PlantSeries.of(observations);
+
+        assertThat(series.lastViewChangeDay()).isNull();
+        assertThat(series.daily().get(2L)).isEqualTo(.13);
+    }
+
+    @Test
     void 한_장만_동떨어진_자리에_찍힌_박스는_버린다() {
         List<Observation> observations = List.of(
                 at(1, 12, 0.10, 0.30, 0.65), at(2, 12, 0.11, 0.30, 0.65),
@@ -58,15 +89,45 @@ class PlantSeriesTest {
     }
 
     @Test
-    void 사진의_절반_이상에서_식물이_잘린_날은_비운다() {
+    void 마지막_한_장의_중심_변화만으로_포트_이동을_확정하지_않는다() {
+        List<Observation> observations = List.of(
+                at(1, 12, .10, .50, .55),
+                at(2, 12, .12, .50, .55),
+                at(2, 21, .13, .51, .44));
+
+        PlantSeries series = PlantSeries.of(observations);
+
+        assertThat(series.lastViewChangeDay()).isNull();
+        assertThat(series.daily().get(2L)).isCloseTo(.125, within(1e-9));
+    }
+
+    @Test
+    void 잘린_사진도_그날_크기의_하한으로_남긴다() {
         List<Observation> observations = List.of(
                 at(1, 6, 0.10, 0.30, 0.65), at(1, 12, 0.11, 0.30, 0.65), cut(1, 18, 0.08, 0.30, 0.70),
                 at(2, 6, 0.16, 0.30, 0.65), cut(2, 12, 0.09, 0.30, 0.70));
 
         PlantSeries series = PlantSeries.of(observations);
 
-        assertThat(series.daily().get(1L)).isCloseTo(0.105, within(1e-9));
-        assertThat(series.daily()).doesNotContainKey(2L);
+        assertThat(series.daily().get(1L)).isCloseTo(0.10, within(1e-9));
+        assertThat(series.daily().get(2L)).isCloseTo(0.125, within(1e-9));
+        assertThat(series.isLowerBound(2L)).isTrue();
+        assertThat(series.hasExactPhoto(2L)).isTrue();
+    }
+
+    @Test
+    void 카메라_교체는_박스_중심이_같아도_촬영_구간을_나눈다() {
+        List<Observation> observations = List.of(
+                new Observation(PLANTED.plusDays(1), 1, .10, false, .5, .5, .10, null, 0),
+                new Observation(PLANTED.plusDays(2), 2, .11, false, .5, .5, .11, null, 0),
+                new Observation(PLANTED.plusDays(3), 3, .05, false, .5, .5, .05, null, 1),
+                new Observation(PLANTED.plusDays(4), 4, .06, false, .5, .5, .06, null, 1));
+
+        PlantSeries series = PlantSeries.of(observations);
+
+        assertThat(series.lastViewChangeDay()).isEqualTo(3L);
+        assertThat(series.latestViewDaily(1, 4)).containsOnlyKeys(3L, 4L);
+        assertThat(series.sameViewPhotos(1, 4)).hasSize(2);
     }
 
     @Test

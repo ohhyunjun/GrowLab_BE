@@ -66,6 +66,34 @@ class GrowthMathTest {
                 List.of(photo(1, 12, 0.10), photo(2, 12, 0.11)), List.of(photo(3, 12, 0.05), photo(4, 12, 0.06))))).isNull();
     }
 
+    @Test
+    void 잘린_최근_사진도_보이는_부분만으로_증가가_확인되면_최소_속도에_넣는다() {
+        List<Observation> photos = List.of(
+                photo(1, 12, .10), photo(2, 12, .12), clipped(3, 12, .16));
+
+        GrowthMath.RateEvidence evidence = GrowthMath.rateEvidence(List.of(photos));
+
+        assertThat(evidence).isNotNull();
+        assertThat(evidence.lowerBound()).isTrue();
+        assertThat(evidence.ratePerDay()).isGreaterThan(0);
+    }
+
+    @Test
+    void 잘린_사진의_보이는_면적이_작아져도_느려졌다고_단정하지_않는다() {
+        List<Observation> photos = List.of(
+                photo(1, 12, .10), photo(2, 12, .12), clipped(3, 12, .08));
+
+        assertThat(GrowthMath.rateEvidence(List.of(photos))).isNull();
+    }
+
+    @Test
+    void 앞선_사진까지_잘렸으면_증가율의_기준으로_쓰지_않는다() {
+        List<Observation> photos = List.of(
+                clipped(1, 12, .08), clipped(2, 12, .10), clipped(3, 12, .12));
+
+        assertThat(GrowthMath.rateEvidence(List.of(photos))).isNull();
+    }
+
     // 파종 뒤 흐른 시간만큼 하루 10%씩 자란 크기로 찍힌 사진.
     private Observation growing(int day, int hour) {
         return photo(day, hour, 0.05 * Math.pow(1.10, day + hour / 24.0));
@@ -73,5 +101,9 @@ class GrowthMathTest {
 
     private Observation photo(int day, int hour, double size) {
         return new Observation(PLANTED.plusDays(day).withHour(hour), day, size, false, 0.3, 0.6);
+    }
+
+    private Observation clipped(int day, int hour, double size) {
+        return new Observation(PLANTED.plusDays(day).withHour(hour), day, size, true, 0.3, 0.6);
     }
 }

@@ -8,8 +8,11 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
 import java.io.IOException;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -63,6 +66,18 @@ public class S3StorageService {
         }
 
         return new UploadResult(originalFileName, storedFileName, key, publicUrl(key));
+    }
+
+    public InputStream openCameraPhoto(String storedFileName) {
+        if (!isEnabled() || bucket == null || bucket.isBlank()
+                || storedFileName == null || !storedFileName.matches("[A-Za-z0-9._-]+")) {
+            throw new IllegalArgumentException("저장된 카메라 사진을 읽을 수 없습니다.");
+        }
+        String key = "uploads/camera/" + storedFileName;
+        try (S3Client s3 = S3Client.builder().region(Region.of(region)).build()) {
+            byte[] bytes = s3.getObjectAsBytes(GetObjectRequest.builder().bucket(bucket).key(key).build()).asByteArray();
+            return new ByteArrayInputStream(bytes);
+        }
     }
 
     private String publicUrl(String key) {

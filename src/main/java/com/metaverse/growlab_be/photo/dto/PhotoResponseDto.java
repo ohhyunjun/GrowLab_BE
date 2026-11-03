@@ -28,6 +28,7 @@ public class PhotoResponseDto {
     private final Double boxHeight;
     private final Double boxArea;
     private final Double boxAreaRatio;
+    private final Double greenAreaRatio;
 
     // 검출된 전체 박스 원본(JSON)과 대표 박스 인덱스.
     private final String detectionsJson;
@@ -55,6 +56,7 @@ public class PhotoResponseDto {
         this.boxHeight = photo.getBoxHeight();
         this.boxArea = photo.getBoxArea();
         this.boxAreaRatio = photo.getBoxAreaRatio();
+        this.greenAreaRatio = photo.getGreenAreaRatio();
         this.detectionsJson = photo.getDetectionsJson();
         this.selectedBoxIndex = photo.getSelectedBoxIndex();
         this.plantId=photo.getPlantId();
