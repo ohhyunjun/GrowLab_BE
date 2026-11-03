@@ -36,4 +36,11 @@ public class HarvestPrediction {
         modelVersion=p.modelVersion(); featureVersion=p.featureVersion(); status=p.status(); anchor=p.anchor();
         anchorAt=p.anchorAt(); remainingDays=p.remainingDays(); expectedAt=p.expectedAt(); this.featuresJson=featuresJson;
     }
+
+    void completePrediction(HarvestPayload result) {
+        if (!"PREDICTED".equals(result.status()) || !observationId.equals(result.observationId())) {
+            throw new IllegalArgumentException("다른 관측의 예측 결과입니다.");
+        }
+        status=result.status(); remainingDays=result.remainingDays(); expectedAt=result.expectedAt();
+    }
 }

@@ -51,6 +51,12 @@ class HarvestServiceTest {
         HarvestPayload p=json.readValue(fixture,HarvestPayload.class);
         assertThat(service.parseAndValidate(fixture,p.observationId(),p.capturedAt(),plant).features()).hasSize(275);
     }
+    @Test void newModelWaitsForGrowingButLegacyQueuedPlantingIsPreserved() throws Exception {
+        var current=valid();current.put("anchor","planting");
+        assertThatThrownBy(()->parse(current)).isInstanceOf(ResponseStatusException.class);
+        var queued=valid();queued.put("modelVersion",HarvestService.LEGACY_MODEL);queued.put("anchor","planting");
+        assertThat(parse(queued).anchor()).isEqualTo("planting");
+    }
     @Test void featureOnlyPayloadGetsItsDateFromEc2() throws Exception {
         var raw=valid();raw.put("status","FEATURES_READY");raw.put("remainingDays",null);raw.put("expectedAt",null);
         HarvestPayload features=parse(raw);
@@ -59,6 +65,16 @@ class HarvestServiceTest {
         when(inference.predict(features)).thenReturn(expected);
         assertThat(service.predictOnEc2(features)).isSameAs(expected);
         verify(inference).predict(features);
+    }
+    @Test void ec2OutagePreservesFeaturesWithoutClaimingAPredictedDate() throws Exception {
+        var raw=valid();raw.put("status","FEATURES_READY");raw.put("remainingDays",null);raw.put("expectedAt",null);
+        HarvestPayload input=parse(raw);
+        when(inference.predict(input)).thenThrow(new ResponseStatusException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE));
+        HarvestPayload pending=service.predictOnEc2(input);
+        assertThat(pending.status()).isEqualTo("FEATURES_READY");
+        assertThat(pending.features()).hasSize(275);
+        assertThat(pending.expectedAt()).isNull();
+        assertThat(pending.remainingDays()).isNull();
     }
     @Test void rejectsWrongWidthDateVersionAndMissingFlag() throws Exception {
         var p=valid();p.put("features",List.of(1.,2.));assertThatThrownBy(()->parse(p)).isInstanceOf(ResponseStatusException.class);

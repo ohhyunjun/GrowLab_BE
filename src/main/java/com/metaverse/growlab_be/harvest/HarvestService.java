@@ -15,10 +15,12 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 
-@Service @RequiredArgsConstructor
+@Service @RequiredArgsConstructor @Slf4j
 public class HarvestService {
-    public static final String MODEL="lettuce-ridge275-20261018-v1";
+    public static final String MODEL="lettuce-ridge275-robust-20261019-v2";
+    public static final String LEGACY_MODEL="lettuce-ridge275-20261018-v1";
     public static final String FEATURES="selected-roi-rgb275-v1";
     private final HarvestPredictionRepository repository;
     private final PlantRepository plants;
@@ -46,7 +48,8 @@ public class HarvestService {
         catch(Exception e) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"잘못된 수확기 예측 형식입니다."); }
         if (p==null || !Integer.valueOf(1).equals(p.schemaVersion()) || !observationId.equals(p.observationId())
                 || !capturedAt.equals(p.capturedAt()) || !capturedAt.equals(p.predictedAt())
-                || !MODEL.equals(p.modelVersion()) || !FEATURES.equals(p.featureVersion())) bad("예측 버전 또는 촬영 시각 불일치입니다.");
+                || !(MODEL.equals(p.modelVersion()) || LEGACY_MODEL.equals(p.modelVersion()))
+                || !FEATURES.equals(p.featureVersion())) bad("예측 버전 또는 촬영 시각 불일치입니다.");
         Set<String> statuses=Set.of("FEATURES_READY","PREDICTED","HARVEST_READY","WAITING_ANCHOR","NO_DETECTION","UNSUPPORTED_CROP");
         if (p.status()==null || !statuses.contains(p.status())) bad("알 수 없는 예측 상태입니다.");
         boolean supported=HarvestCrop.supports(plant.getSpecies());
@@ -54,7 +57,8 @@ public class HarvestService {
         if(p.confirmedStage()==null || p.confirmedStage()<0 || p.confirmedStage()>3
                 || ("HARVEST_READY".equals(p.status()) != (p.confirmedStage()==3))
                 || (!supported && p.confirmedStage()!=0)) bad("잘못된 누적 확인 단계입니다.");
-        if (p.anchor()!=null && (!Set.of("growing","planting").contains(p.anchor()) || p.anchorAt()==null
+        if (p.anchor()!=null && (!("growing".equals(p.anchor())
+                || (LEGACY_MODEL.equals(p.modelVersion()) && "planting".equals(p.anchor()))) || p.anchorAt()==null
                 || p.anchorAt().isAfter(capturedAt))) bad("잘못된 관측 기준일입니다.");
         if (p.anchor()==null && p.anchorAt()!=null) bad("관측 기준 종류가 없습니다.");
         if ("FEATURES_READY".equals(p.status()) || "PREDICTED".equals(p.status())) {
@@ -84,8 +88,16 @@ public class HarvestService {
     }
 
     public HarvestPayload predictOnEc2(HarvestPayload input) {
-        return "FEATURES_READY".equals(input.status()) || "PREDICTED".equals(input.status())
-                ? inferenceClient.predict(input) : input;
+        if (!"FEATURES_READY".equals(input.status()) && !"PREDICTED".equals(input.status())) return input;
+        try {
+            return inferenceClient.predict(input);
+        } catch (ResponseStatusException ex) {
+            if (!ex.getStatusCode().is5xxServerError()) throw ex;
+            log.warn("EC2 prediction pending; preserving photo and features for observation {}", input.observationId());
+            return new HarvestPayload(input.schemaVersion(),input.observationId(),input.capturedAt(),
+                    input.predictedAt(),input.modelVersion(),input.featureVersion(),"FEATURES_READY",
+                    input.anchor(),input.anchorAt(),null,null,input.features(),input.confirmedStage());
+        }
     }
 
     public void save(Plant plant, Long photoId, HarvestPayload p) {
