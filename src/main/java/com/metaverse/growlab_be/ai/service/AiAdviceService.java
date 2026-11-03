@@ -14,7 +14,6 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 @Service
 public class AiAdviceService {
@@ -34,7 +33,9 @@ public class AiAdviceService {
     }
 
     public String getAdvice(AiAdviceRequestDto req) {
-        String prompt = buildPrompt(req);
+        SensorLogRequestDto sensor = sensorLogService.getLatestData(req.getSerialNumber());
+        if (!hasSensorData(sensor)) return "센서 데이터가 아직 없어 재배 조언을 제공할 수 없어요.";
+        String prompt = buildPrompt(sensor);
 
         WebClient client = WebClient.builder()
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
@@ -45,12 +46,13 @@ public class AiAdviceService {
                 "model", "gpt-4o-mini",
                 "messages", List.of(
                         Map.of("role", "system", "content",
-                                "당신은 스마트팜 전문가입니다. 센서 데이터와 재배 중인 작물의 재배 기준을 비교 분석하여 " +
-                                        "식물 재배에 대한 간결하고 실용적인 조언을 한국어로 제공합니다. " +
-                                        "재배 기준이 '기준 미등록'으로 표시된 항목은 해당 작물에 대한 일반적인 재배 지식을 바탕으로 보완해서 판단하세요. " +
+                                "당신은 스마트팜 전문가입니다. 한 기기의 공통 센서 데이터로 재배 환경을 분석하고 " +
+                                        "모든 포트에 적용할 수 있는 간결하고 실용적인 조언을 한국어로 제공합니다. " +
+                                        "개별 포트의 품종, 재배 일수, 생육 단계는 추정하지 마세요. " +
                                         "마크다운 문법(###, **, * 등)을 절대 사용하지 마세요. " +
                                         "환경 전반, 조명 관리, 양액 시스템 항목으로 나누어 각 항목당 1~2문장으로 답변하세요. " +
-                                        "성장 속도나 생육 진행 정도는 평가하지 마세요."),
+                                        "성장 속도나 생육 진행 정도는 평가하지 마세요. " +
+                                        "'측정 없음'인 센서 값은 0으로 간주하거나 상태를 추정하지 마세요."),
                         Map.of("role", "user", "content", prompt)
                 ),
                 "max_tokens", 500,
@@ -72,12 +74,11 @@ public class AiAdviceService {
     // ── 포트 문제(성장 정체 등) LLM 정밀 분석. 규칙 1차 판정 결과를 근거로 원인·조치를 추정한다. (버튼 클릭 시에만 호출)
     public String getPortDiagnosis(PortDiagnosisRequestDto req) {
         SensorLogRequestDto sensor = sensorLogService.getLatestData(req.getSerialNumber());
-        double temperature = sensor != null && sensor.getTemperature() != null ? sensor.getTemperature() : 0.0;
-        double humidity    = sensor != null && sensor.getHumidity() != null ? sensor.getHumidity() : 0.0;
-        double ph          = sensor != null && sensor.getPh() != null ? sensor.getPh() : 0.0;
-        double tds         = sensor != null && sensor.getTds() != null ? sensor.getTds() : 0.0;
-        double waterLevel  = sensor != null && sensor.getWater_level_status() != null
-                ? (sensor.getWater_level_status() ? 100.0 : 0.0) : 0.0;
+        String temperature = measured(sensor == null ? null : sensor.getTemperature(), "°C");
+        String humidity = measured(sensor == null ? null : sensor.getHumidity(), "%");
+        String ph = measured(sensor == null ? null : sensor.getPh(), "");
+        String tds = measured(sensor == null ? null : sensor.getTds(), "ppm");
+        String waterLevel = waterStatus(sensor == null ? null : sensor.getWater_level_status());
 
         Species species = null;
         if (req.getSpeciesId() != null) species = speciesRepository.findById(req.getSpeciesId()).orElse(null);
@@ -123,11 +124,11 @@ public class AiAdviceService {
         - 질병 라벨: %s
 
         [최근 센서]
-        - 온도: %.1f°C (기준 %s)
-        - 습도: %.1f%%
-        - pH: %.1f (기준 %s)
-        - TDS: %.1fppm (기준 %s)
-        - 수위: %.1f%%
+        - 온도: %s (기준 %s)
+        - 습도: %s
+        - pH: %s (기준 %s)
+        - TDS: %s (기준 %s)
+        - 수위: %s
         - 생육 특이사항: %s
 
         '감지된 문제', '가능한 원인', '권장 조치' 세 항목으로 나눠 각 1~3줄로 한국어로 답하세요.
@@ -136,6 +137,7 @@ public class AiAdviceService {
         수확일이나 수확까지 남은 일수는 추정하지 마세요. 수확기 도달일은 별도의 영상 예측 결과로 안내합니다.
         '정보 없음'이나 '비교할 기록 부족'이면 크기나 성장 속도를 문제로 지어내지 말고,
         과거보다 커졌다면 자라는 중으로 보고 센서 값 위주로 진단하세요. 문제가 없으면 없다고 답하세요.
+        '측정 없음'인 센서 값은 0으로 간주하거나 이상으로 판단하지 마세요.
         확정 진단이 아니라 참고 추정임을 전제로,
         현장에서 바로 실행 가능한 구체적 조치 위주로 작성하세요.
         """,
@@ -175,51 +177,20 @@ public class AiAdviceService {
         return (String) message.get("content");
     }
 
-    private String buildPrompt(AiAdviceRequestDto req) {
-        SensorLogRequestDto sensor = sensorLogService.getLatestData(req.getSerialNumber());
-
-        double temperature = sensor != null && sensor.getTemperature() != null ? sensor.getTemperature() : 0.0;
-        double humidity    = sensor != null && sensor.getHumidity() != null ? sensor.getHumidity()       : 0.0;
-        double ph          = sensor != null && sensor.getPh() != null ? sensor.getPh()                   : 0.0;
-        double tds         = sensor != null && sensor.getTds() != null ? sensor.getTds()                 : 0.0;
-        double waterLevel  = sensor != null && sensor.getWater_level_status() != null
-                ? (sensor.getWater_level_status() ? 100.0 : 0.0) : 0.0;
-
-        Species species = findSpecies(req);
-
-        String speciesName    = species != null ? species.getName() : (req.getSpeciesName() != null ? req.getSpeciesName() : "미등록 품종");
-        String categoryText   = species != null ? categoryToKorean(species.getCategory()) : "정보 없음";
-        String tempRange   = range(species != null ? species.getMinTemperature() : null, species != null ? species.getMaxTemperature() : null, "°C");
-        String humidRange  = range(species != null ? species.getMinHumidity() : null, species != null ? species.getMaxHumidity() : null, "%");
-        String phRange     = range(species != null ? species.getMinPh() : null, species != null ? species.getMaxPh() : null, "");
-        String tdsRange    = range(species != null ? species.getMinTds() : null, species != null ? species.getMaxTds() : null, "ppm");
-        String lightRange  = range(species != null ? species.getMinLightHours() : null, species != null ? species.getMaxLightHours() : null, "시간");
-
-        String note = species != null && species.getAiPromptGuideline() != null && !species.getAiPromptGuideline().isBlank()
-                ? species.getAiPromptGuideline()
-                : "등록된 생육 특이사항 없음";
+    private String buildPrompt(SensorLogRequestDto sensor) {
+        String temperature = measured(sensor.getTemperature(), "°C");
+        String humidity = measured(sensor.getHumidity(), "%");
+        String ph = measured(sensor.getPh(), "");
+        String tds = measured(sensor.getTds(), "ppm");
+        String waterLevel = waterStatus(sensor.getWater_level_status());
 
         return String.format("""
-        식물 정보:
-        - 품종: %s
-        - 분류: %s
-        - 재배 일수: %d일
-        - 생육 단계: %s
-
-        %s(%s) 재배 기준:
-        - 적정 온도: %s
-        - 적정 습도: %s
-        - 적정 pH: %s
-        - 적정 TDS: %s
-        - 권장 조명 시간: %s
-        - 생육 특이사항: %s
-
-        현재 센서 데이터:
-        - 온도: %.1f°C
-        - 습도: %.1f%%
-        - pH: %.1f
-        - TDS: %.1fppm
-        - 수위: %.1f%%
+        기기 공통 재배 환경의 최신 센서 데이터:
+        - 온도: %s
+        - 습도: %s
+        - pH: %s
+        - TDS: %s
+        - 수위: %s
 
         아래 규칙에 따라 분석해주세요.
 
@@ -227,7 +198,7 @@ public class AiAdviceService {
         현재 재배 환경 상태를 전체적으로 평가하세요.
 
         [조명 관리]
-        온도 및 생육 상태를 고려하여 조명 관련 조언을 제공하세요.
+        온도를 고려하여 조명 관련 조언을 제공하세요.
 
         [양액 시스템]
         pH, TDS, 수위 상태를 분석하고 필요한 조치를 설명하세요.
@@ -236,16 +207,26 @@ public class AiAdviceService {
         - 각 항목은 1~2문장으로 작성
         - 불필요한 인사말 금지
         - 실제 스마트팜 운영자가 바로 적용 가능한 수준으로 설명
-        - 수치가 적정 범위를 벗어나면 원인과 해결 방향 제시
-        - "기준 미등록"인 항목은 해당 작물의 일반적인 재배 지식으로 보완해서 판단
+        - 포트마다 작물이 다를 수 있으므로 품종별 적정 범위나 생육 상태를 단정하지 않음
+        - 명확한 기준이 없는 수치는 이상으로 단정하지 않고 확인할 항목을 설명
+        - "측정 없음"인 센서 값은 0으로 간주하거나 이상으로 판단하지 않음
         - 성장 속도는 평가하지 않음. 포트마다 다르므로 포트별 정밀 분석에서 따로 다룬다
         """,
-                speciesName, categoryText, req.getDaysSincePlanted() != null ? req.getDaysSincePlanted() : 0,
-                req.getPlantStage() != null ? req.getPlantStage() : "미등록",
-                speciesName, categoryText,
-                tempRange, humidRange, phRange, tdsRange, lightRange, note,
                 temperature, humidity, ph, tds, waterLevel
         );
+    }
+
+    private static boolean hasSensorData(SensorLogRequestDto sensor) {
+        return sensor != null && (sensor.getTemperature() != null || sensor.getHumidity() != null
+                || sensor.getPh() != null || sensor.getTds() != null || sensor.getWater_level_status() != null);
+    }
+
+    private static String measured(Float value, String unit) {
+        return value == null ? "측정 없음" : String.format("%.1f%s", value, unit);
+    }
+
+    private static String waterStatus(Boolean value) {
+        return value == null ? "측정 없음" : value ? "정상" : "부족";
     }
 
     // min/max 중 하나라도 있으면 범위 문자열 생성, 둘 다 없으면 "기준 미등록"
@@ -264,26 +245,4 @@ public class AiAdviceService {
         return String.valueOf(value);
     }
 
-    private Species findSpecies(AiAdviceRequestDto req) {
-        Optional<Species> found = Optional.empty();
-
-        if (req.getSpeciesId() != null) {
-            found = speciesRepository.findById(req.getSpeciesId());
-        }
-        if (found.isEmpty() && req.getSpeciesName() != null && !req.getSpeciesName().isBlank()) {
-            found = speciesRepository.findByName(req.getSpeciesName());
-        }
-
-        return found.orElse(null);
-    }
-
-    private String categoryToKorean(com.metaverse.growlab_be.species.domain.Category category) {
-        if (category == null) return "정보 없음";
-        return switch (category) {
-            case VEGETABLE -> "채소";
-            case FRUIT -> "과일";
-            case HERB -> "허브";
-            case ORNAMENTAL -> "관상식물";
-        };
-    }
 }
