@@ -15,8 +15,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 
-@Service @RequiredArgsConstructor
+@Service @RequiredArgsConstructor @Slf4j
 public class HarvestService {
     public static final String MODEL="lettuce-ridge275-robust-20261019-v2";
     public static final String LEGACY_MODEL="lettuce-ridge275-20261018-v1";
@@ -87,8 +88,16 @@ public class HarvestService {
     }
 
     public HarvestPayload predictOnEc2(HarvestPayload input) {
-        return "FEATURES_READY".equals(input.status()) || "PREDICTED".equals(input.status())
-                ? inferenceClient.predict(input) : input;
+        if (!"FEATURES_READY".equals(input.status()) && !"PREDICTED".equals(input.status())) return input;
+        try {
+            return inferenceClient.predict(input);
+        } catch (ResponseStatusException ex) {
+            if (!ex.getStatusCode().is5xxServerError()) throw ex;
+            log.warn("EC2 prediction pending; preserving photo and features for observation {}", input.observationId());
+            return new HarvestPayload(input.schemaVersion(),input.observationId(),input.capturedAt(),
+                    input.predictedAt(),input.modelVersion(),input.featureVersion(),"FEATURES_READY",
+                    input.anchor(),input.anchorAt(),null,null,input.features(),input.confirmedStage());
+        }
     }
 
     public void save(Plant plant, Long photoId, HarvestPayload p) {

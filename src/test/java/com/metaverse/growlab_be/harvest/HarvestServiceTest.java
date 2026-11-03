@@ -66,6 +66,16 @@ class HarvestServiceTest {
         assertThat(service.predictOnEc2(features)).isSameAs(expected);
         verify(inference).predict(features);
     }
+    @Test void ec2OutagePreservesFeaturesWithoutClaimingAPredictedDate() throws Exception {
+        var raw=valid();raw.put("status","FEATURES_READY");raw.put("remainingDays",null);raw.put("expectedAt",null);
+        HarvestPayload input=parse(raw);
+        when(inference.predict(input)).thenThrow(new ResponseStatusException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE));
+        HarvestPayload pending=service.predictOnEc2(input);
+        assertThat(pending.status()).isEqualTo("FEATURES_READY");
+        assertThat(pending.features()).hasSize(275);
+        assertThat(pending.expectedAt()).isNull();
+        assertThat(pending.remainingDays()).isNull();
+    }
     @Test void rejectsWrongWidthDateVersionAndMissingFlag() throws Exception {
         var p=valid();p.put("features",List.of(1.,2.));assertThatThrownBy(()->parse(p)).isInstanceOf(ResponseStatusException.class);
         var q=valid();q.put("expectedAt",time);assertThatThrownBy(()->parse(q)).isInstanceOf(ResponseStatusException.class);
