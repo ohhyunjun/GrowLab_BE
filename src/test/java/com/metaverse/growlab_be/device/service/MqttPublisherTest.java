@@ -12,12 +12,15 @@ import org.springframework.messaging.MessageChannel;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 class MqttPublisherTest {
 
     @Test
     void publishesDeviceCommandsAndPhotoInterval() {
         MessageChannel channel = mock(MessageChannel.class);
+        when(channel.send(any(Message.class))).thenReturn(true);
         MqttPublisher publisher = new MqttPublisher(channel);
 
         publisher.publishCommand("GROWLAB-G111", "O");
@@ -40,6 +43,7 @@ class MqttPublisherTest {
     @Test
     void publishesSpeciesThresholdsAsRetainedCsv() {
         MessageChannel channel = mock(MessageChannel.class);
+        when(channel.send(any(Message.class))).thenReturn(true);
         MqttPublisher publisher = new MqttPublisher(channel);
         Species species = new Species();
         species.setMinTemperature(18.5);
@@ -64,6 +68,7 @@ class MqttPublisherTest {
     @Test
     void mixedPortSpeciesPublishSharedIntersection() {
         MessageChannel channel = mock(MessageChannel.class);
+        when(channel.send(any(Message.class))).thenReturn(true);
         MqttPublisher publisher = new MqttPublisher(channel);
         Species strawberry = new Species();
         strawberry.setId(1L);
@@ -104,6 +109,7 @@ class MqttPublisherTest {
     @Test
     void publishesUnboundedThresholdsWhenSpeciesIsCleared() {
         MessageChannel channel = mock(MessageChannel.class);
+        when(channel.send(any(Message.class))).thenReturn(true);
         MqttPublisher publisher = new MqttPublisher(channel);
 
         publisher.publishThresholds("GROWLAB-G111", null);

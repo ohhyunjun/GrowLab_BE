@@ -134,9 +134,17 @@ public class DeviceService {
         if (deviceRepository.existsById(serialNumber)) {
             throw new IllegalArgumentException("이미 존재하는 시리얼 번호입니다: " + serialNumber);
         }
+        MqttPublisher publisher = mqttPublisherProvider.getIfAvailable();
+        if (publisher == null) {
+            throw new IllegalStateException("MQTT 제어 연결이 비활성화되어 새 기기의 촬영 주기를 설정할 수 없습니다.");
+        }
         Device device = deviceRepository.save(new Device(serialNumber, serialNumber));
-        mqttPublisherProvider.ifAvailable(publisher -> publisher.publishPortState(
-                serialNumber, device.getPortStatus(), device.getActivePlants()));
+        try {
+            publisher.publishPhotoInterval(serialNumber, device.getPhotoInterval());
+            publisher.publishPortState(serialNumber, device.getPortStatus(), device.getActivePlants());
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("MQTT 브로커에 새 기기의 촬영 주기를 보낼 수 없습니다.", e);
+        }
     }
 
     @Transactional
@@ -171,16 +179,27 @@ public class DeviceService {
     }
 
     @Transactional
-    public void updatePhotoInterval(String serialNumber, Integer photoInterval, User user) {
+    public boolean updatePhotoInterval(String serialNumber, Integer photoInterval, User user) {
+        if (photoInterval == null || photoInterval < 1 || photoInterval > MAX_PHOTO_INTERVAL_HOURS) {
+            throw new IllegalArgumentException("촬영 주기는 1~6시간으로 설정해주세요.");
+        }
         Device device = findDeviceOwnedByUser(serialNumber, user);
+        MqttPublisher publisher = mqttPublisherProvider.getIfAvailable();
         device.setPhotoInterval(photoInterval);
-        mqttPublisherProvider.ifAvailable(publisher ->
-                publisher.publishPhotoInterval(serialNumber, photoInterval));
+        // MQTT가 꺼진 개발 환경에서는 트랜잭션으로 DB 설정만 저장한다.
+        if (publisher == null) return false;
+        try {
+            publisher.publishPhotoInterval(serialNumber, photoInterval);
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("MQTT 브로커에 촬영 주기 명령을 보낼 수 없습니다.", e);
+        }
+        return true;
     }
 
     @Transactional
-    public void controlLed(String serialNumber, LedRequestDto requestDto, User user) {
+    public boolean controlLed(String serialNumber, LedRequestDto requestDto, User user) {
         Device device = findDeviceOwnedByUser(serialNumber, user);
+        MqttPublisher publisher = mqttPublisherProvider.getIfAvailable();
         String command;
 
         if (Boolean.TRUE.equals(requestDto.getLedMode())) {
@@ -200,8 +219,13 @@ public class DeviceService {
             command = Boolean.TRUE.equals(requestDto.getLedStatus()) ? "O" : "o";
         }
 
-        mqttPublisherProvider.ifAvailable(publisher ->
-                publisher.publishCommand(serialNumber, command));
+        if (publisher == null) return false;
+        try {
+            publisher.publishCommand(serialNumber, command);
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("MQTT 브로커에 LED 명령을 보낼 수 없습니다.", e);
+        }
+        return true;
     }
 
     @Transactional
