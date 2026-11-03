@@ -14,7 +14,6 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController @RequiredArgsConstructor
 public class HarvestController {
     private final HarvestService service;
-    private final DeviceEdgeAuth auth;
     private final DeviceRepository devices;
     private final PlantRepository plants;
     @GetMapping("/api/harvest-predictions/{plantId}")
@@ -22,8 +21,9 @@ public class HarvestController {
         return service.latest(plantId,principal.getUser().getId());
     }
     @GetMapping("/api/device-edge/{serial}/ports") @Transactional(readOnly=true)
-    public PortStateSnapshot ports(@PathVariable String serial,@RequestHeader(value="X-Device-Key",required=false) String key) {
-        auth.verify(serial,key);
+    public PortStateSnapshot ports(@PathVariable String serial) {
+        // HTTP device identity verification is deferred; MQTT keeps its own authentication.
+        // A registered serial is still required to read a cultivation snapshot.
         var d=devices.findById(serial).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND));
         return PortStateSnapshot.from(serial,d.getPortStatus(),plants.findByDeviceIdAndEndedAtIsNull(serial));
     }

@@ -3,7 +3,6 @@ package com.metaverse.growlab_be.auth.config;
 import com.metaverse.growlab_be.auth.filter.JwtAuthenticationFilter;
 import com.metaverse.growlab_be.auth.handler.CustomAccessDeniedHandler;
 import com.metaverse.growlab_be.auth.handler.CustomAuthenticationEntryPoint;
-import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,6 +17,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import jakarta.servlet.DispatcherType;
 
 @Configuration // 스프링부트 설정 빈으로 등록
 @EnableWebSecurity // 스프링시큐리티 활성화
@@ -59,16 +59,25 @@ public class SecurityConfig {
                 // 인가(Authorization) 부분으로 엔드포인트 접근 권한을 설정하는 부분
                 .authorizeHttpRequests((authorize) -> authorize
 
-                        // Preserve the original HTTP status when Spring dispatches an error to /error.
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
 
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // 1. 인증 없이 접근 가능한 공개 API
-                        .requestMatchers("/api/auth/**", "/api/sample/**", "/uploads/**" ).permitAll()
+                        // Error dispatch must remain public so real 4xx/5xx errors are not masked as 401.
+                        .requestMatchers("/error").permitAll()
 
-                        //Flask 서버 인증 없이 접근 허용
-                        .requestMatchers(HttpMethod.POST, "/api/predictions").permitAll()
+                        // 1. 인증 없이 접근 가능한 공개 API
+                        .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/auth/email/send-code",
+                                "/api/auth/email/verify-code",
+                                "/api/auth/password-reset/send-code",
+                                "/api/auth/password-reset",
+                                "/api/auth/find-id/send-code",
+                                "/api/auth/find-id").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/api/auth/username", "/api/auth/password").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/auth/withdraw").authenticated()
+                        .requestMatchers("/api/sample/**", "/uploads/**").permitAll()
 
                         // 농산물 가격 조회 허용 추가 (GET 요청만 인증 없이 통과)
                         .requestMatchers(HttpMethod.GET, "/api/prices/**").permitAll()
@@ -76,9 +85,10 @@ public class SecurityConfig {
                         // 라즈베리파이 -> 서버 전송 (JWT 없이 시리얼 번호로만 인증)
                         .requestMatchers(HttpMethod.POST, "/api/sensor_logs/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/photos").permitAll()
-                        // The controller verifies a per-device X-Device-Key.
+                        // HTTP device identity verification is deferred; MQTT auth is separate.
                         .requestMatchers(HttpMethod.GET, "/api/device-edge/*/ports").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/notices/alert").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/device-selftests").permitAll()
 
                         // 실시간 센서값 수신 + SSE 구독
                         .requestMatchers(HttpMethod.POST, "/api/sensor_logs/realtime").permitAll()

@@ -4,14 +4,12 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Map;
 
-/** Per-device credentials. Unconfigured devices cannot write edge predictions. */
-@Component
+/** Legacy credential verifier retained for reference; not wired into the HTTP pipeline. */
 public class DeviceEdgeAuth {
     private final Map<String, String> keys;
     public DeviceEdgeAuth(@Value("${growlab.edge.device-keys-json:${GROWLAB_EDGE_DEVICE_KEYS_JSON:{}}}") String json) {
