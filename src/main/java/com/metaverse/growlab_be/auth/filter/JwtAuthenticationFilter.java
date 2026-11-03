@@ -33,11 +33,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         final String jwtToken;
         final String username;
 
-        System.out.println("===== JWT FILTER =====");
-        System.out.println("URI = " + request.getRequestURI());
-        System.out.println("METHOD = " + request.getMethod());
-        System.out.println("AUTH HEADER = " + authHeader);
-
         // 2. Authorization 헤더가 없거나, "Bearer "로 시작되지 않는 경우,
         // JWT가 없는 요청으로 간주(인증되지 않은 상태) 다음 필터로 스킵
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -61,9 +56,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             // 5. UserDetailsService통해 사용자계정(Username)을 기반으로 UserDetails 객체 로드
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-
-            System.out.println("USERNAME = " + username);
-            System.out.println("TOKEN VALID = " + jwtUtil.validateToken(jwtToken, userDetails));
 
             // 6. 토큰 유효성 검사(사용자 이름 일치, 토큰 만료 여부)
             if (jwtUtil.validateToken(jwtToken, userDetails)) {

@@ -149,6 +149,10 @@ public class UserService {
         User target = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다: " + targetUserId));
 
+        if (!target.getDevices().isEmpty()) {
+            throw new IllegalStateException("사용자의 기기를 제거한 후 강퇴할 수 있습니다.");
+        }
+
         userRepository.delete(target);
     }
 

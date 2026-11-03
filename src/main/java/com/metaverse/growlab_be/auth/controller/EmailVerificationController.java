@@ -5,6 +5,8 @@ import com.metaverse.growlab_be.auth.dto.EmailCodeVerifyRequestDto;
 import com.metaverse.growlab_be.auth.service.EmailVerificationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.mail.MailException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("api/auth/email")
 @RequiredArgsConstructor
+@Slf4j
 public class EmailVerificationController {
 
     private final EmailVerificationService emailVerificationService;
@@ -23,7 +26,11 @@ public class EmailVerificationController {
             return ResponseEntity.ok("인증코드가 발송되었습니다.");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (MailException e) {
+            log.error("Email verification SMTP delivery failed; check spring.mail.host, port, username, password and TLS settings", e);
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("메일 발송 서버 오류입니다. 관리자에게 문의해주세요.");
         } catch (Exception e) {
+            log.error("Email verification code request failed", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
         }
     }

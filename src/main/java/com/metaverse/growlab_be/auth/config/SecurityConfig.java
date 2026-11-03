@@ -17,6 +17,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import jakarta.servlet.DispatcherType;
 
 @Configuration // 스프링부트 설정 빈으로 등록
 @EnableWebSecurity // 스프링시큐리티 활성화
@@ -58,6 +59,8 @@ public class SecurityConfig {
                 // 인가(Authorization) 부분으로 엔드포인트 접근 권한을 설정하는 부분
                 .authorizeHttpRequests((authorize) -> authorize
 
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // Error dispatch must remain public so real 4xx/5xx errors are not masked as 401.
@@ -82,7 +85,7 @@ public class SecurityConfig {
                         // 라즈베리파이 -> 서버 전송 (JWT 없이 시리얼 번호로만 인증)
                         .requestMatchers(HttpMethod.POST, "/api/sensor_logs/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/photos").permitAll()
-                        // The controller verifies a per-device X-Device-Key.
+                        // HTTP device identity verification is deferred; MQTT auth is separate.
                         .requestMatchers(HttpMethod.GET, "/api/device-edge/*/ports").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/notices/alert").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/device-selftests").permitAll()
